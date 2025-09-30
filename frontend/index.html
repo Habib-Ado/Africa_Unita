@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="/static/img/favicon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--<meta http-equiv="refresh" content="12">-->
+    <meta name="description" content="Africa Unita \nUBUNTU \nio sono perchè noi siamo">
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/all.min.css">
+    <title>Africa Unita</title>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/" data-link>Africa Unita</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                 
+                    <li class="nav-item">
+                        <a href="#about" class="nav-link">Chi Siamo</a>
+                    </li>
+                    <li class="nav-item" id="profile-link" style="display: none;">
+                        <a href="/profile" class="nav-link" data-link>
+                            <i class="fas fa-user"></i> Profilo
+                        </a>
+                    </li>
+                    <li class="nav-item" id="admin-link" style="display: none;">
+                        <a href="/admin/users" class="nav-link" data-link>
+                            <i class="fas fa-users-cog"></i> Gestione Utenti
+                        </a>
+                    </li>
+                
+                    <li class="nav-item">
+                        <a href="/messages" class="nav-link" id="btnMessages" style="display: none;" data-link>
+                            <i class="fas fa-envelope"></i> Messaggi
+                        </a>
+                    </li>
+                   
+                </ul>
+                <form class="d-flex me-3" id="search-form">
+                    <div class="input-group">
+                        <input class="form-control" type="search" placeholder="Cerca novità..." aria-label="Search"
+                            id="search-input">
+                        <button class="btn btn-outline-light" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </form>
+                <div class="d-flex align-items-center">
+                    <a href="/login" data-link id="btnLogin" class="btn btn-outline-light me-2">
+                        <i class="fas fa-sign-in-alt"></i> Accedi
+                    </a>
+                    <a href="/register" data-link id="btnRegister" class="btn btn-primary me-2">
+                        <i class="fas fa-user-plus"></i> Registrati
+                    </a>
+                    <button id="logout" class="btn btn-danger" style="display: none;">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <div id="app" class="container"></div>
+
+    <!-- About Modal -->
+    <div class="modal fade" id="aboutModal" tabindex="-1" aria-labelledby="aboutModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content" style="background-color: #f8f9fa20;">
+                <div class="modal-header bg-primary text-white">
+                    <h1 class="modal-title fs-4" id="aboutModalLabel">Benvenuti sul sito dell'associazione Africa Unita</h1>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="card shadow-sm mb-4 border-0">
+                        <div class="card-body p-4">
+                            <h2 class="card-title text-primary mb-3">
+                                <i class="fas fa-store-alt me-2"></i>La Nostra Piattaforma
+                            </h2>
+                            <p class="card-text lead">
+                                Africa Unita è un'associazione di non profit che permette di aiutare i migranti Africani
+                                come per trovare un alloggio, formazioni o lavoro.
+                               
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-4 border-0">
+                        <div class="card-body p-4">
+                            <h2 class="card-title text-primary mb-3">
+                                <i class="fas fa-hands-helping me-2"></i>Diventa Membro
+                            </h2>
+                            <p class="card-text lead">
+                                
+                                Per diventare un membro di Africa Unita, contatta il nostro team amministrativo
+                                all'indirizzo
+                                email: <a href="mailto:adobinesse@gmail.com"
+                                    class="text-primary fw-bold">adobinesse@gmail.com</a>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-4 border-0">
+                        <div class="card-body p-4">
+                            <h2 class="card-title text-primary mb-3">
+                                <i class="fas fa-star me-2"></i>Vantaggi di Essere un membro
+                            </h2>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div
+                                            class="feature-icon bg-primary bg-gradient text-white rounded-circle p-2 me-3">
+                                            <i class="fas fa-globe"></i>
+                                        </div>
+                                        <div>
+                                            <h5 class="mb-1">Rete di Supporto</h5>
+                                            <p class="mb-0 text-muted small">Raggiungi persone e famiglie in tutta Italia attraverso la nostra rete</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div
+                                            class="feature-icon bg-primary bg-gradient text-white rounded-circle p-2 me-3">
+                                            <i class="fas fa-hands-helping"></i>
+                                        </div>
+                                        <div>
+                                            <h5 class="mb-1">Supporto Personalizzato</h5>
+                                            <p class="mb-0 text-muted small">Ricevi orientamento e accompagnamento in base alle tue esigenze</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div
+                                            class="feature-icon bg-primary bg-gradient text-white rounded-circle p-2 me-3">
+                                            <i class="fas fa-chart-line"></i>
+                                        </div>
+                                        <div>
+                                            <h5 class="mb-1">Informazione e Orientamento</h5>
+                                            <p class="mb-0 text-muted small">Aggiornamenti su opportunità di alloggio, lavoro, formazione e servizi</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div
+                                            class="feature-icon bg-primary bg-gradient text-white rounded-circle p-2 me-3">
+                                            <i class="fas fa-shield-alt"></i>
+                                        </div>
+                                        <div>
+                                            <h5 class="mb-1">Tutela e Privacy</h5>
+                                            <p class="mb-0 text-muted small">Proteggiamo i tuoi dati e la tua privacy in ogni attività</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div
+                                            class="feature-icon bg-primary bg-gradient text-white rounded-circle p-2 me-3">
+                                            <i class="fas fa-users"></i>
+                                        </div>
+                                        <div>
+                                            <h5 class="mb-1">Community</h5>
+                                            <p class="mb-0 text-muted small">Entra a far parte della nostra rete di membri e volontari
+                                                professionisti</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="social-links">
+                    <a href="#" target="_blank"><i class="fab fa-facebook"></i></a>
+                    <a href="#" target="_blank"><i class="fab fa-instagram"></i></a>
+                    <a href="#" target="_blank"><i class="fab fa-twitter"></i></a>
+                </div>
+                <ul class="footer-links">
+                    <li><a href="#about" class="nav-link">Chi Siamo</a></li>
+                    <li><a href="/register" data-link>Diventa Membro</a></li>
+                    <li><a href="/privacy-policy" data-link>Privacy</a></li>
+                </ul>
+                <div class="contact-info">
+                    <span><i class="fas fa-map-marker-alt"></i>Varese</span>
+                    <span><i class="fas fa-envelope"></i>info@africaunita.org</span>
+                </div>
+            </div>
+            <div class="footer-bottom text-center">
+            <small>&copy; 2025 Africa Unita</small>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/js/all.min.js"></script>
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/jquery.js"></script>
+    <script type="module" src="/static/js/index.js"></script>
+    <script>
+        // Initialize About Modal
+        document.addEventListener('DOMContentLoaded', function () {
+            const aboutLinks = document.querySelectorAll('a[href="#about"]');
+            aboutLinks.forEach(link => {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const aboutModal = new bootstrap.Modal(document.getElementById('aboutModal'));
+                    aboutModal.show();
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>
