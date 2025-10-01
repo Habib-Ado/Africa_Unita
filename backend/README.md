@@ -35,7 +35,7 @@ npm install
 
 1. Crea un file `.env` nella root del backend:
 ```bash
-cp .env.example .env
+cp config.example.env .env
 ```
 
 2. Modifica il file `.env` con le tue configurazioni:

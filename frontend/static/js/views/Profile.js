@@ -5,15 +5,15 @@ import AbstractView from "./AbstractView.js";
 export default class extends AbstractView {
     constructor() {
         super();
-        this.setTitle("Il Mio Profilo - Artigianato Online");
+        this.setTitle("Il Mio Profilo - Africa Unita");
         this.userData = null;
         this.role = null;
         this.stats = null;
+        this.paymentStatus = null;
+        this.fees = [];
         // Bind the notification methods
         this.showNotification = this.showNotification.bind(this);
         this.showError = this.showError.bind(this);
-        this.viewOrderDetails = this.viewOrderDetails.bind(this);
-        this.downloadInvoice = this.downloadInvoice.bind(this);
     }
 
     // Add notification methods
@@ -50,7 +50,7 @@ export default class extends AbstractView {
     async init() {
         try {
             const token = localStorage.getItem('auth_token')
-            const response = await fetch("/api/auth/me", {
+            const response = await fetch("http://localhost:3000/api/auth/me", {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",
@@ -74,7 +74,7 @@ export default class extends AbstractView {
 
             this.userData = userData;
             this.role = userData.role;
-            this.stats = data.statistics;
+            this.stats = payload.data?.statistics || null; // stats non più usate, rimosso e-commerce
 
             // Rimosso contenuto e-commerce (ordini/artigiani)
 
@@ -121,18 +121,10 @@ export default class extends AbstractView {
                 avatarInput.addEventListener("change", (e) => this.handleAvatarChange(e));
             }
 
-            // Aggiungi il pulsante di reinvio email di verifica se l'utente non è verificato
-            if (!this.userData.is_verified) {
-                const resendButton = document.createElement("button");
-                resendButton.className = "btn btn-link";
-                resendButton.textContent = "Reinvia email di verifica";
-                resendButton.onclick = () => this.resendVerificationEmail();
-                
-                const verificationMessage = document.getElementById("verification-message");
-                if (verificationMessage) {
-                    verificationMessage.querySelector(".alert").appendChild(resendButton);
-                }
-            }
+            // Email verification: da implementare in futuro se necessario
+
+            // Carica stato pagamenti
+            await this.loadPaymentStatus();
 
             this.updateUI();
         } catch (error) {
@@ -141,7 +133,32 @@ export default class extends AbstractView {
         }
     }
 
-    // Rimosso: loadArtisanOrders()
+    async loadPaymentStatus() {
+        try {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch('http://localhost:3000/api/fees/my-status', {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.paymentStatus = data.data?.status;
+                this.fees = data.data?.fees || [];
+            } else {
+                // Se il sistema quote non è ancora attivo, ignora l'errore
+                console.log('⚠️ Sistema quote non ancora attivo - eseguire: npm run db:add-fees');
+                this.paymentStatus = null;
+                this.fees = [];
+            }
+        } catch (error) {
+            console.log('⚠️ Sistema quote non disponibile');
+            this.paymentStatus = null;
+            this.fees = [];
+        }
+    }
 
     // Rimosso: updateOrderStatus()
 
@@ -219,23 +236,14 @@ export default class extends AbstractView {
 
     populateForm() {
         // Popola i campi del form con i dati correnti dell'utente
-        document.getElementById("name").value = this.userData.name || "";
-        document.getElementById("surname").value = this.userData.surname || "";
-        document.getElementById("birthdate").value = this.userData.birthdate || "";
+        document.getElementById("name").value = this.userData.first_name || "";
+        document.getElementById("surname").value = this.userData.last_name || "";
+        document.getElementById("birthdate").value = this.userData.date_of_birth || "";
         document.getElementById("phone").value = this.userData.phone || "";
         document.getElementById("address").value = this.userData.address || "";
         document.getElementById("email").value = this.userData.email || "";
-        
-        // Gestisci il campo company_name solo per gli artigiani
-        const companyNameField = document.getElementById("company-name-field");
-        const companyNameInput = document.getElementById("company_name");
-
-        if (this.userData.role === "artigiano") {
-            if (companyNameField && companyNameInput) {
-                companyNameField.style.display = "block";
-                companyNameInput.value = this.userData.company_name || "";
-            }
-        }
+        document.getElementById("city").value = this.userData.city || "";
+        document.getElementById("country_of_origin").value = this.userData.country_of_origin || "";
     }
 
     validateForm() {
@@ -270,14 +278,7 @@ export default class extends AbstractView {
             isValid = false;
         }
 
-        // Validazione nome azienda (obbligatoria solo per gli artigiani)
-        if (this.userData.role === "artigiano") {
-            const companyName = document.getElementById("company_name").value.trim();
-            if (!companyName || companyName.length < 2 || companyName.length > 100) {
-                errors.company_name = "Il nome dell'azienda è obbligatorio e deve essere compreso tra 2 e 100 caratteri";
-                isValid = false;
-            }
-        }
+        // Rimosso: validazione company_name (non più necessario)
 
         // Validazione email (obbligatoria)
         const email = document.getElementById("email").value.trim();
@@ -311,21 +312,22 @@ export default class extends AbstractView {
         }
 
         const formData = {
-            name: document.getElementById("name").value.trim(),
-            surname: document.getElementById("surname").value.trim(),
-            birthdate: document.getElementById("birthdate").value || null,
+            first_name: document.getElementById("name").value.trim(),
+            last_name: document.getElementById("surname").value.trim(),
+            date_of_birth: document.getElementById("birthdate").value || null,
             phone: document.getElementById("phone").value.trim() || null,
             address: document.getElementById("address").value.trim() || null,
-            email: document.getElementById("email").value.trim(),
-            company_name: this.userData.role === "artigiano" ? 
-                         document.getElementById("company_name").value.trim() : null
+            city: document.getElementById("city").value.trim() || null,
+            country_of_origin: document.getElementById("country_of_origin").value.trim() || null
         };
 
         try {
-            const response = await fetch("/api/profile", {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch("http://localhost:3000/api/users/profile", {
                 method: "PUT",
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
                 body: JSON.stringify(formData)
             });
@@ -340,31 +342,8 @@ export default class extends AbstractView {
                 // Aggiorna i dati dell'utente
                 this.userData = { ...this.userData, ...formData };
 
-                // Aggiorna gli elementi dell'interfaccia utente
-                document.querySelector(".profile-name").textContent = `${formData.name} ${formData.surname}`;
-                
-                // Aggiorna l'elenco delle informazioni
-                const infoList = document.querySelector(".info-list");
-                if (infoList) {
-                    const emailValue = infoList.querySelector("li:nth-child(1) .info-value");
-                    const phoneValue = infoList.querySelector("li:nth-child(2) .info-value");
-                    const addressValue = infoList.querySelector("li:nth-child(3) .info-value");
-                    
-                    if (emailValue) emailValue.textContent = formData.email;
-                    if (phoneValue) phoneValue.textContent = formData.phone || 'Non specificato';
-                    if (addressValue) addressValue.textContent = formData.address || 'Non specificato';
-
-                    // Aggiorna l'azienda se l'utente è artigiano
-                    if (this.userData.role === 'artigiano') {
-                        const companyElement = infoList.querySelector("li:nth-child(4)");
-                        if (companyElement) {
-                            companyElement.querySelector(".info-value").textContent = formData.company_name || 'Non specificato';
-                        }
-                    }
-                }
-
-                // Mostra il messaggio di successo
-                alert("Profilo aggiornato con successo!");
+                // Ricarica la pagina per mostrare i dati aggiornati
+                window.location.reload();
             } else {
                 alert(data.message || "Errore durante l'aggiornamento del profilo");
             }
@@ -428,30 +407,11 @@ export default class extends AbstractView {
         }
     }
 
-    // Aggiungi il metodo per reinviare l'email di verifica se l'utente non è verificato
-    async resendVerificationEmail() {
-        try {
-            const response = await fetch("/api/resend-verification", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                }
-            });
+    // Rimosso: resendVerificationEmail() - endpoint non implementato nel backend
 
-            const data = await response.json();
-            
-            if (response.ok) {
-                alert("Email di verifica reinviata con successo!");
-            } else {
-                alert(data.message || "Errore durante l'invio dell'email di verifica");
-            }
-        } catch (error) {
-            console.error("Errore durante l'invio dell'email di verifica:", error);
-            alert("Si è verificato un errore durante l'invio dell'email di verifica");
-        }
-    }
-
-    async viewOrderDetails(orderId) {
+    // Rimosso: viewOrderDetails() - non più necessario per associazione
+    
+    async viewOrderDetails_removed(orderId) {
         console.log('viewOrderDetails called with orderId:', orderId);
         try {
             const response = await fetch(`/api/orders/${orderId}`, {
@@ -648,14 +608,8 @@ export default class extends AbstractView {
     }
 
     initializeEventListeners() {
-        // Add event listeners for order detail buttons
-        document.querySelectorAll('.view-order').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const orderId = e.target.closest('.view-order').dataset.orderId;
-                this.viewOrderDetails(orderId);
-            });
-        });
-
+        // Rimosso: event listener ordini (non più necessario)
+        
         // Add event listener for edit profile button
         const editProfileButton = document.getElementById('edit-profile');
         if (editProfileButton) {
@@ -678,15 +632,6 @@ export default class extends AbstractView {
         if (avatarInput) {
             avatarInput.addEventListener('change', (e) => this.handleAvatarChange(e));
         }
-
-        // Aggiungi event listeners per gli ordini
-        document.querySelectorAll('.update-status').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const orderId = e.target.closest('.update-status').dataset.orderId;
-                const newStatus = e.target.closest('.update-status').dataset.status;
-                this.updateOrderStatus(orderId, newStatus);
-            });
-        });
     }
 
     async after_render() {
@@ -696,31 +641,13 @@ export default class extends AbstractView {
 
     async getHtml() {
         await this.init();
-        this.userData.avatar = this.userData.avatar || "/static/img/avatar.png";
+        this.userData.avatar_url = this.userData.avatar_url || "/static/img/avatar.png";
         
         console.log("User data before rendering:", this.userData);
         console.log("Role:", this.userData.role);
-        console.log("Statistics:", this.stats);
         
-        // Determina se mostrare la sezione ordini
-        const showOrders = this.userData.role && this.userData.role.toLowerCase() !== "artigiano";
-
-        // Prepara le statistiche per gli artigiani e admin
-        const showStatistics = this.userData.role === 'artigiano' || this.userData.role === 'admin';
-        const stats = this.stats || { 
-            total_products: 0, 
-            total_items: 0,
-            total_users: 0,
-            total_orders: 0
-        };
-
         // Determina il ruolo visualizzato
-        let roleDisplay = 'Cliente';
-        if (this.userData.role === 'artigiano') {
-            roleDisplay = 'Artigiano';
-        } else if (this.userData.role === 'admin') {
-            roleDisplay = 'Amministratore';
-        }
+        const roleDisplay = this.userData.role === 'admin' ? 'Amministratore' : 'Membro';
         
         return `
         <style>
@@ -820,18 +747,6 @@ export default class extends AbstractView {
                 box-shadow: 0 4px 12px rgba(52,152,219,0.2);
             }
 
-            .manage-products-btn {
-                background: #2ecc71;
-                color: white;
-                border: none;
-                transition: all 0.3s ease;
-            }
-
-            .manage-products-btn:hover {
-                background: #27ae60;
-                transform: translateY(-2px);
-                box-shadow: 0 4px 12px rgba(46,204,113,0.2);
-            }
 
             .admin-panel {
                 background: #ffffff;
@@ -878,7 +793,7 @@ export default class extends AbstractView {
 
                 <div class="profile-header">
                     <div class="avatar-section">
-                        <img src="${this.userData.avatar}" alt="Avatar" class="profile-avatar">
+                        <img src="${this.userData.avatar_url}" alt="Avatar" class="profile-avatar">
                         <input type="file" autocomplete="off" id="avatar-input" class="avatar-upload" accept="image/*">
                         <button class="change-avatar-btn" title="Cambia avatar">
                             <i class="fas fa-camera"></i>
@@ -886,91 +801,52 @@ export default class extends AbstractView {
                     </div>
                     
                     <div class="profile-info">
-                        <h1 class="profile-name">${this.userData.name} ${this.userData.surname}</h1>
+                        <h1 class="profile-name">${this.userData.first_name} ${this.userData.last_name}</h1>
                         <p class="profile-role">${roleDisplay}</p>
                         
                         <div class="profile-actions">
                             <button id="edit-profile" class="profile-btn edit-profile-btn">
                                 <i class="fas fa-edit"></i> Modifica Profilo
                             </button>
-                            ${this.userData.role === 'artigiano' ? `
-                                <a href="/my-products" class="profile-btn manage-products-btn" data-link>
-                                    <i class="fas fa-box"></i> Gestisci Prodotti
-                                </a>
-                            ` : ''}
                         </div>
                     </div>
                 </div>
 
-                ${showStatistics ? `
-                    <div class="profile-stats">
-                        ${this.userData.role === 'artigiano' ? `
-                            <div class="stat-card">
-                                <div class="stat-value">${stats.total_products}</div>
-                                <div class="stat-label">Prodotti pubblicati</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-value">${stats.total_items}</div>
-                                <div class="stat-label">Articoli totali</div>
-                            </div>
-                        ` : ''}
-                        ${this.userData.role === 'admin' ? `
-                            <div class="stat-card">
-                                <div class="stat-value">${stats.total_users}</div>
-                                <div class="stat-label">Utenti totali</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-value">${stats.total_products}</div>
-                                <div class="stat-label">Prodotti totali</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-value">${stats.total_orders}</div>
-                                <div class="stat-label">Ordini totali</div>
-                            </div>
-                        ` : ''}
-                    </div>
-                ` : ''}
-
-                ${this.userData.role === 'admin' ? `
+                ${this.userData.role === 'admin' || this.userData.role === 'treasurer' ? `
                     <div class="admin-panel">
-                        <h2 class="admin-title">Pannello Amministratore</h2>
+                        <h2 class="admin-title">${this.userData.role === 'admin' ? 'Area Amministratore' : 'Area Tesoriere'}</h2>
                         <div class="row">
-                            <div class="col-md-3">
-                                <div class="admin-card">
-                                    <h5>Gestione Utenti</h5>
-                                    <p>Gestisci gli utenti della piattaforma</p>
-                                    <a href="/admin/users" class="btn btn-primary w-100" data-link>
-                                        <i class="fas fa-users"></i> Accedi
-                                    </a>
+                            ${this.userData.role === 'treasurer' || this.userData.role === 'admin' ? `
+                                <div class="col-md-${this.userData.role === 'admin' ? '4' : '12'}">
+                                    <div class="admin-card">
+                                        <h5>Gestione Tesoreria</h5>
+                                        <p>Gestisci quote associative e fondo</p>
+                                        <a href="/treasurer" class="btn btn-success w-100" data-link>
+                                            <i class="fas fa-coins"></i> Accedi
+                                        </a>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="admin-card">
-                                    <h5>Gestione Prodotti</h5>
-                                    <p>Gestisci i prodotti della piattaforma</p>
-                                    <a href="/admin/products" class="btn btn-success w-100" data-link>
-                                        <i class="fas fa-box"></i> Accedi
-                                    </a>
+                            ` : ''}
+                            ${this.userData.role === 'admin' ? `
+                                <div class="col-md-4">
+                                    <div class="admin-card">
+                                        <h5>Gestione Utenti</h5>
+                                        <p>Gestisci i membri della piattaforma</p>
+                                        <a href="/admin/users" class="btn btn-primary w-100" data-link>
+                                            <i class="fas fa-users"></i> Accedi
+                                        </a>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="admin-card">
-                                    <h5>Gestione Ordini</h5>
-                                    <p>Gestisci gli ordini della piattaforma</p>
-                                    <a href="/admin/orders" class="btn btn-info w-100" data-link>
-                                        <i class="fas fa-shopping-cart"></i> Accedi
-                                    </a>
+                                <div class="col-md-4">
+                                    <div class="admin-card">
+                                        <h5>Statistiche</h5>
+                                        <p>Visualizza le statistiche dell'associazione</p>
+                                        <a href="/admin/stats" class="btn btn-info w-100" data-link>
+                                            <i class="fas fa-chart-bar"></i> Accedi
+                                        </a>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="admin-card">
-                                    <h5>Statistiche</h5>
-                                    <p>Visualizza le statistiche della piattaforma</p>
-                                    <a href="/admin/stats" class="btn btn-warning w-100" data-link>
-                                        <i class="fas fa-chart-bar"></i> Accedi
-                                    </a>
-                                </div>
-                            </div>
+                            ` : ''}
                         </div>
                     </div>
                 ` : ''}
@@ -988,98 +864,78 @@ export default class extends AbstractView {
                                 <span class="info-value">${this.userData.phone || 'Non specificato'}</span>
                             </li>
                             <li class="info-item">
-                                <span class="info-label">Indirizzo:</span>
-                                <span class="info-value">${this.userData.address || 'Non specificato'}</span>
+                                <span class="info-label">Città:</span>
+                                <span class="info-value">${this.userData.city || 'Non specificato'}</span>
+                            </li>
+                            <li class="info-item">
+                                <span class="info-label">Paese di origine:</span>
+                                <span class="info-value">${this.userData.country_of_origin || 'Non specificato'}</span>
                             </li>
                         </ul>
                     </div>
 
-                    
-
-                    ${this.userData.role === 'artigiano' ? `
-                        <div class="profile-section">
-                            <h2 class="section-title">Statistiche Artigiano</h2>
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <div class="stat-card">
-                                        <div class="stat-value">${stats.total_products || 0}</div>
-                                        <div class="stat-label">Prodotti pubblicati</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="stat-card">
-                                        <div class="stat-value">${stats.total_orders || 0}</div>
-                                        <div class="stat-label">Ordini ricevuti</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="stat-card">
-                                        <div class="stat-value">€${stats.total_revenue || 0}</div>
-                                        <div class="stat-label">Ricavo totale</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="stat-card">
-                                        <div class="stat-value">${stats.average_rating || 0}</div>
-                                        <div class="stat-label">Valutazione media</div>
+                    <div class="profile-section mt-4">
+                        <h2 class="section-title">Situazione Quote Associative</h2>
+                        ${this.paymentStatus ? `
+                            <div class="alert ${this.paymentStatus.is_current ? 'alert-success' : 'alert-warning'} mb-3">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas ${this.paymentStatus.is_current ? 'fa-check-circle' : 'fa-exclamation-triangle'} me-2 fs-4"></i>
+                                    <div>
+                                        <strong>${this.paymentStatus.is_current ? '✓ Sei in regola!' : '⚠ Pagamenti in sospeso'}</strong>
+                                        ${!this.paymentStatus.is_current ? `
+                                            <div class="mt-1">
+                                                <small>Mesi non pagati: ${this.paymentStatus.months_overdue}</small><br>
+                                                <small>Totale da pagare: €${parseFloat(this.paymentStatus.total_unpaid).toFixed(2)}</small>
+                                            </div>
+                                        ` : ''}
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <div class="profile-section">
-                            <h2 class="section-title">Gestione Ordini</h2>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
+                        ` : ''}
+                        
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Mese/Anno</th>
+                                        <th>Importo</th>
+                                        <th>Stato</th>
+                                        <th>Data Pagamento</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${this.fees.length > 0 ? this.fees.map(fee => `
                                         <tr>
-                                            <th>ID Ordine</th>
-                                            <th>Data</th>
-                                            <th>Cliente</th>
-                                            <th>Prodotti</th>
-                                            <th>Totale</th>
-                                            <th>Stato</th>
-                                            <th>Azioni</th>
+                                            <td>${fee.month}/${fee.year}</td>
+                                            <td>€${parseFloat(fee.amount).toFixed(2)}</td>
+                                            <td>
+                                                <span class="badge ${
+                                                    fee.status === 'paid' ? 'bg-success' :
+                                                    fee.status === 'overdue' ? 'bg-danger' :
+                                                    'bg-warning text-dark'
+                                                }">
+                                                    ${fee.status === 'paid' ? 'Pagato' : 
+                                                      fee.status === 'overdue' ? 'Scaduto' : 
+                                                      'In sospeso'}
+                                                </span>
+                                            </td>
+                                            <td>${fee.payment_date ? new Date(fee.payment_date).toLocaleDateString() : '-'}</td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${this.orders.map(order => `
-                                            <tr>
-                                                <td>#${order.id}</td>
-                                                <td>${new Date(order.created_at).toLocaleDateString()}</td>
-                                                <td>${order.customer_name}</td>
-                                                <td>${order.items_count} prodotti</td>
-                                                <td>€${order.total.toFixed(2)}</td>
-                                                <td>
-                                                    <span class="badge bg-${this.getStatusBadgeColor(order.status)}">
-                                                        ${this.getStatusLabel(order.status)}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <button class="btn btn-sm btn-info view-order" data-order-id="${order.id}">
-                                                        <i class="fas fa-eye"></i> Dettagli
-                                                    </button>
-                                                    ${order.status === 'pending' ? `
-                                                        <button class="btn btn-sm btn-success update-status" data-order-id="${order.id}" data-status="processing">
-                                                            <i class="fas fa-check"></i> Accetta
-                                                        </button>
-                                                        <button class="btn btn-sm btn-danger update-status" data-order-id="${order.id}" data-status="cancelled">
-                                                            <i class="fas fa-times"></i> Rifiuta
-                                                        </button>
-                                                    ` : ''}
-                                                    ${order.status === 'processing' ? `
-                                                        <button class="btn btn-sm btn-primary update-status" data-order-id="${order.id}" data-status="shipped">
-                                                            <i class="fas fa-truck"></i> Spedisci
-                                                        </button>
-                                                    ` : ''}
-                                                </td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
+                                    `).join('') : `
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted">Nessuna quota registrata</td>
+                                        </tr>
+                                    `}
+                                </tbody>
+                            </table>
                         </div>
-                    ` : ''}
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle"></i> Quota mensile: €10,00. 
+                                Per effettuare il pagamento, contatta il tesoriere dell'associazione.
+                            </small>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Modal per la modifica del profilo -->
@@ -1121,33 +977,19 @@ export default class extends AbstractView {
                                         <label for="birthdate" class="form-label">Data di nascita</label>
                                         <input type="date" autocomplete="off" class="form-control" id="birthdate">
                                     </div>
-                                    ${this.userData.role === 'artigiano' ? `
-                                        <div class="form-group" id="company-name-field">
-                                            <label for="company_name" class="form-label">Nome Azienda</label>
-                                            <input type="text" class="form-control" id="company_name">
-                                            <div id="company_nameError" class="error-message"></div>
-                                        </div>
-                                    ` : ''}
+                                    <div class="form-group">
+                                        <label for="city" class="form-label">Città</label>
+                                        <input type="text" autocomplete="off" class="form-control" id="city">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="country_of_origin" class="form-label">Paese di origine</label>
+                                        <input type="text" autocomplete="off" class="form-control" id="country_of_origin">
+                                    </div>
                                 </form>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
                                 <button type="submit" form="profile-form" class="btn btn-primary">Salva modifiche</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Modal per i dettagli dell'ordine -->
-                <div class="modal fade" id="orderDetailsModal" tabindex="-1">
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Dettagli Ordine</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <!-- I dettagli dell'ordine verranno inseriti qui dinamicamente -->
                             </div>
                         </div>
                     </div>

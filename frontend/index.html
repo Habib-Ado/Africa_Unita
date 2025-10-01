@@ -9,7 +9,8 @@
     <meta name="description" content="Africa Unita \nUBUNTU \nio sono perchè noi siamo">
     <link rel="stylesheet" href="/static/css/bootstrap.min.css">
     <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="/static/css/all.min.css">
+    <!-- FontAwesome da CDN (evita 404 su webfonts locali) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <title>Africa Unita</title>
 </head>
 
@@ -35,6 +36,11 @@
                     <li class="nav-item" id="admin-link" style="display: none;">
                         <a href="/admin/users" class="nav-link" data-link>
                             <i class="fas fa-users-cog"></i> Gestione Utenti
+                        </a>
+                    </li>
+                    <li class="nav-item" id="treasurer-link" style="display: none;">
+                        <a href="/treasurer" class="nav-link" data-link>
+                            <i class="fas fa-coins"></i> Tesoreria
                         </a>
                     </li>
                 
@@ -83,13 +89,37 @@
                     <div class="card shadow-sm mb-4 border-0">
                         <div class="card-body p-4">
                             <h2 class="card-title text-primary mb-3">
-                                <i class="fas fa-store-alt me-2"></i>La Nostra Piattaforma
+                                <i class="fas fa-hand-holding-heart me-2"></i>Chi Siamo e Cosa Facciamo
                             </h2>
                             <p class="card-text lead">
-                                Africa Unita è un'associazione di non profit che permette di aiutare i migranti Africani
-                                come per trovare un alloggio, formazioni o lavoro.
-                               
+                                Africa Unita è un'associazione senza scopo di lucro impegnata nel supporto alle persone migranti di origine africana e alle loro famiglie
+                                sul territorio. Promuoviamo percorsi di integrazione sociale e lavorativa tramite orientamento, formazione, accompagnamento ai servizi
+                                e attivazione di reti solidali locali.
                             </p>
+                            <p class="mb-2">
+                                Il nostro scopo è favorire l'autonomia e la piena partecipazione alla vita della comunità, nel rispetto della dignità e dei diritti di ciascuno.
+                                Operiamo in collaborazione con enti pubblici, realtà del terzo settore, scuole, centri per l'impiego e cittadini volontari.
+                            </p>
+                            <div class="row g-3 mt-2">
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-start">
+                                        <i class="fas fa-bullseye text-primary me-2 mt-1"></i>
+                                        <div>
+                                            <strong>Missione</strong>
+                                            <div class="text-muted small">Accoglienza, inclusione, autonomia: percorsi concreti per abitare, formarsi e lavorare.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-start">
+                                        <i class="fas fa-users text-primary me-2 mt-1"></i>
+                                        <div>
+                                            <strong>Valori</strong>
+                                            <div class="text-muted small">Rispetto, corresponsabilità, trasparenza, prossimità, lavoro in rete.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -105,6 +135,11 @@
                                 email: <a href="mailto:adobinesse@gmail.com"
                                     class="text-primary fw-bold">adobinesse@gmail.com</a>
                             </p>
+                            <ul class="mb-0 text-muted small">
+                                <li>Volontariato in attività di accoglienza, orientamento e mediazione.</li>
+                                <li>Supporto a corsi di lingua, formazione professionale e ricerca lavoro.</li>
+                                <li>Partecipazione a eventi, campagne di sensibilizzazione e raccolta fondi.</li>
+                            </ul>
                         </div>
                     </div>
 
@@ -175,6 +210,17 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="col-12">
+                                    <hr class="my-3">
+                                    <h5 class="mb-2">La nostra organizzazione</h5>
+                                    <ul class="mb-0 text-muted small">
+                                        <li><strong>Assemblea dei Soci</strong>: definisce le linee strategiche e approva il bilancio.</li>
+                                        <li><strong>Consiglio Direttivo</strong>: coordina le attività e cura le relazioni istituzionali.</li>
+                                        <li><strong>Coordinamento Operativo</strong>: pianifica i progetti e supervisiona i servizi.</li>
+                                        <li><strong>Equipe Territoriali</strong>: volontari e operatori attivi su alloggio, formazione, lavoro e servizi.</li>
+                                        <li><strong>Trasparenza</strong>: rendiconto annuale, politiche di tutela e gestione dei dati accessibili ai soci.</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -215,19 +261,6 @@
     <script src="/static/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/jquery.js"></script>
     <script type="module" src="/static/js/index.js"></script>
-    <script>
-        // Initialize About Modal
-        document.addEventListener('DOMContentLoaded', function () {
-            const aboutLinks = document.querySelectorAll('a[href="#about"]');
-            aboutLinks.forEach(link => {
-                link.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const aboutModal = new bootstrap.Modal(document.getElementById('aboutModal'));
-                    aboutModal.show();
-                });
-            });
-        });
-    </script>
 </body>
 
 </html>

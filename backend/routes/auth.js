@@ -39,12 +39,13 @@ router.post('/register', validateRegister, async (req, res) => {
         const saltRounds = 10;
         const password_hash = await bcrypt.hash(password, saltRounds);
 
-        // Inserisci nuovo utente
+        // Inserisci nuovo utente (gestisci country_of_origin vuoto)
+        const countryValue = country_of_origin && country_of_origin.trim() !== '' ? country_of_origin : null;
         const result = await query(
             `INSERT INTO users (username, email, password_hash, first_name, last_name, phone, country_of_origin)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
              RETURNING id, uuid, username, email, first_name, last_name, role, status, created_at`,
-            [username, email, password_hash, first_name, last_name, phone, country_of_origin]
+            [username, email, password_hash, first_name, last_name, phone, countryValue]
         );
 
         const user = result.rows[0];

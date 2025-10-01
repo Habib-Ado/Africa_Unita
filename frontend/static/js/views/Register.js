@@ -1,5 +1,5 @@
 import AbstractView from "./AbstractView.js";
-import {navigateTo} from "../index.js";
+import {navigateTo, apiFetch} from "../index.js";
 
 export default class extends AbstractView {
     constructor() {
@@ -31,7 +31,7 @@ export default class extends AbstractView {
                         country_of_origin: ''
                     }
 
-                    const response = await fetch("/api/auth/register", {
+                    const response = await apiFetch("/api/auth/register", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(payload)

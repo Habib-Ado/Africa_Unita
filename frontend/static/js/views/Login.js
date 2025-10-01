@@ -1,4 +1,4 @@
-import { navigateTo } from "../index.js";
+import { navigateTo, apiFetch } from "../index.js";
 import AbstractView from "./AbstractView.js";
 
 export default class extends AbstractView {
@@ -71,7 +71,7 @@ export default class extends AbstractView {
                 };
 
                 try {
-                    const response = await fetch("/api/auth/login", {
+                    const response = await apiFetch("/api/auth/login", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"

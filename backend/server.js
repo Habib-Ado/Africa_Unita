@@ -13,6 +13,7 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import messageRoutes from './routes/messages.js';
 import postRoutes from './routes/posts.js';
+import feesRoutes from './routes/fees.js';
 
 // Configurazione
 dotenv.config();
@@ -70,16 +71,26 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/posts', postRoutes);
+app.use('/api/fees', feesRoutes);
 
-// Serve frontend in produzione
-if (process.env.NODE_ENV === 'production') {
-    const frontendPath = path.join(__dirname, '../frontend');
-    app.use('/static', express.static(path.join(frontendPath, 'static')));
-    
-    app.get('*', (req, res) => {
-        res.sendFile(path.join(frontendPath, 'index.html'));
-    });
-}
+
+// Serve frontend (anche in sviluppo, per comodità)
+const frontendPath = path.join(__dirname, '../frontend');
+app.use('/static', express.static(path.join(frontendPath, 'static')));
+
+// SPA fallback SOLO per rotte senza estensione (esclude /static/, /api/ e file con estensione)
+app.get('*', (req, res, next) => {
+    // Se è una richiesta API, passa al next (404 handler)
+    if (req.path.startsWith('/api/')) {
+        return next();
+    }
+    // Se ha un'estensione (file statico), passa al next
+    if (path.extname(req.path)) {
+        return next();
+    }
+    // Altrimenti serve l'index.html per il routing client-side
+    res.sendFile(path.join(frontendPath, 'index.html'));
+});
 
 // ============================================
 // ERROR HANDLING

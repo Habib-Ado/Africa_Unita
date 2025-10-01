@@ -15,17 +15,17 @@ export default class extends AbstractView {
         try {
             // Verifica sessione via JWT
             const token = localStorage.getItem('auth_token');
-            const response = await fetch("/api/auth/me", {
+            const response = await fetch("http://localhost:3000/api/auth/me", {
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 }
             });
             const me = response.ok ? await response.json() : null;
-            console.log("Session check response:", data);
+            console.log("Session check response:", me);
 
             if (!me || !me.data || !me.data.user || !me.data.user.id) {
-                console.log("Session invalid:", data);
+                console.log("Session invalid:", me);
                 this.isAuthenticated = false;
                 this.currentUser = null;
                 document.querySelector("#app").innerHTML = `
@@ -98,7 +98,7 @@ export default class extends AbstractView {
     async loadMessages() {
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch("/api/messages", {
+            const response = await fetch("http://localhost:3000/api/messages", {
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -171,7 +171,7 @@ export default class extends AbstractView {
 
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch("/api/messages", {
+            const response = await fetch("http://localhost:3000/api/messages", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

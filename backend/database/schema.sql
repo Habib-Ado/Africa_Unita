@@ -21,7 +21,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ============================================
 
 -- Ruoli utente
-CREATE TYPE user_role AS ENUM ('user', 'admin', 'moderator');
+CREATE TYPE user_role AS ENUM ('user', 'admin', 'moderator', 'treasurer');
 
 -- Stato utente
 CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended', 'pending');
@@ -31,6 +31,12 @@ CREATE TYPE message_status AS ENUM ('sent', 'delivered', 'read');
 
 -- Categoria post/novità
 CREATE TYPE post_category AS ENUM ('alloggio', 'lavoro', 'formazione', 'servizi', 'eventi', 'altro');
+
+-- Tipo di stato pagamento quota
+CREATE TYPE fee_status AS ENUM ('pending', 'paid', 'overdue', 'cancelled');
+
+-- Tipo di transazione del fondo
+CREATE TYPE transaction_type AS ENUM ('income', 'expense');
 
 -- ============================================
 -- TABLES
@@ -147,6 +153,32 @@ CREATE TABLE activity_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabella Quote Associative Mensili
+CREATE TABLE membership_fees (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount DECIMAL(10,2) NOT NULL DEFAULT 10.00,
+    due_date DATE NOT NULL,
+    status fee_status NOT NULL DEFAULT 'pending',
+    paid_date TIMESTAMP,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, due_date)
+);
+
+-- Tabella Transazioni del Fondo
+CREATE TABLE fund_transactions (
+    id SERIAL PRIMARY KEY,
+    transaction_type transaction_type NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    description TEXT NOT NULL,
+    reference_id INTEGER,
+    treasurer_id INTEGER NOT NULL REFERENCES users(id),
+    transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ============================================
 -- INDEXES per performance
 -- ============================================
@@ -186,6 +218,16 @@ CREATE INDEX idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX idx_activity_logs_user_id ON activity_logs(user_id);
 CREATE INDEX idx_activity_logs_created_at ON activity_logs(created_at DESC);
 
+-- Membership fees indexes
+CREATE INDEX idx_membership_fees_user_id ON membership_fees(user_id);
+CREATE INDEX idx_membership_fees_due_date ON membership_fees(due_date);
+CREATE INDEX idx_membership_fees_status ON membership_fees(status);
+
+-- Fund transactions indexes
+CREATE INDEX idx_fund_transactions_type ON fund_transactions(transaction_type);
+CREATE INDEX idx_fund_transactions_date ON fund_transactions(transaction_date);
+CREATE INDEX idx_fund_transactions_treasurer ON fund_transactions(treasurer_id);
+
 -- ============================================
 -- TRIGGERS per updated_at automatico
 -- ============================================
@@ -208,6 +250,9 @@ CREATE TRIGGER update_messages_updated_at BEFORE UPDATE ON messages
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_comments_updated_at BEFORE UPDATE ON comments
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_membership_fees_updated_at BEFORE UPDATE ON membership_fees
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
@@ -285,5 +330,116 @@ BEGIN
     UPDATE posts 
     SET views_count = views_count + 1 
     WHERE id = post_id_param;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Funzione per controllare lo stato pagamenti di un membro
+CREATE OR REPLACE FUNCTION check_member_payment_status(member_id INTEGER)
+RETURNS TABLE(
+    total_fees DECIMAL(10,2),
+    paid_fees DECIMAL(10,2),
+    pending_fees DECIMAL(10,2),
+    overdue_fees DECIMAL(10,2),
+    last_payment_date TIMESTAMP,
+    payment_status TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        COALESCE(SUM(amount), 0) as total_fees,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as paid_fees,
+        COALESCE(SUM(CASE WHEN status = 'pending' AND due_date >= CURRENT_DATE THEN amount ELSE 0 END), 0) as pending_fees,
+        COALESCE(SUM(CASE WHEN status = 'pending' AND due_date < CURRENT_DATE THEN amount ELSE 0 END), 0) as overdue_fees,
+        MAX(CASE WHEN status = 'paid' THEN paid_date END) as last_payment_date,
+        CASE 
+            WHEN COUNT(*) = 0 THEN 'no_fees'
+            WHEN SUM(CASE WHEN status = 'pending' AND due_date < CURRENT_DATE THEN 1 ELSE 0 END) > 0 THEN 'overdue'
+            WHEN SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) > 0 THEN 'pending'
+            ELSE 'up_to_date'
+        END as payment_status
+    FROM membership_fees 
+    WHERE user_id = member_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Funzione per generare quote mensili per tutti i membri attivi
+CREATE OR REPLACE FUNCTION generate_monthly_fees(target_month DATE)
+RETURNS INTEGER AS $$
+DECLARE
+    fee_count INTEGER;
+BEGIN
+    INSERT INTO membership_fees (user_id, amount, due_date, status)
+    SELECT 
+        u.id,
+        10.00,
+        target_month,
+        'pending'
+    FROM users u
+    WHERE u.status = 'active' 
+    AND u.role IN ('user', 'treasurer')
+    AND NOT EXISTS (
+        SELECT 1 FROM membership_fees mf 
+        WHERE mf.user_id = u.id 
+        AND DATE_TRUNC('month', mf.due_date) = DATE_TRUNC('month', target_month)
+    );
+    
+    GET DIAGNOSTICS fee_count = ROW_COUNT;
+    RETURN fee_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Funzione per confermare pagamento quota
+CREATE OR REPLACE FUNCTION confirm_fee_payment(
+    fee_id INTEGER,
+    treasurer_id INTEGER,
+    payment_notes TEXT DEFAULT NULL
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    fee_record RECORD;
+    is_treasurer BOOLEAN;
+BEGIN
+    -- Verifica che l'utente sia un tesoriere
+    SELECT EXISTS(
+        SELECT 1 FROM users 
+        WHERE id = treasurer_id AND role = 'treasurer'
+    ) INTO is_treasurer;
+    
+    IF NOT is_treasurer THEN
+        RAISE EXCEPTION 'Solo i tesorieri possono confermare i pagamenti';
+    END IF;
+    
+    -- Recupera la quota
+    SELECT * INTO fee_record FROM membership_fees WHERE id = fee_id;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Quota non trovata';
+    END IF;
+    
+    -- Aggiorna la quota
+    UPDATE membership_fees 
+    SET 
+        status = 'paid',
+        paid_date = CURRENT_TIMESTAMP,
+        notes = COALESCE(payment_notes, notes),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = fee_id;
+    
+    -- Aggiungi transazione al fondo
+    INSERT INTO fund_transactions (
+        transaction_type, 
+        amount, 
+        description, 
+        reference_id, 
+        treasurer_id
+    ) VALUES (
+        'income',
+        fee_record.amount,
+        'Pagamento quota associativa - ' || fee_record.user_id,
+        fee_id,
+        treasurer_id
+    );
+    
+    RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql;

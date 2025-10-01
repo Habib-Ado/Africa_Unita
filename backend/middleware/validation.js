@@ -4,6 +4,8 @@ import { body, validationResult } from 'express-validator';
 export const handleValidationErrors = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array());
+        console.log('Request body:', req.body);
         return res.status(400).json({ 
             success: false,
             message: 'Errori di validazione',
@@ -19,8 +21,8 @@ export const validateRegister = [
         .trim()
         .isLength({ min: 3, max: 50 })
         .withMessage('Username deve essere tra 3 e 50 caratteri')
-        .matches(/^[a-zA-Z0-9_]+$/)
-        .withMessage('Username può contenere solo lettere, numeri e underscore'),
+        .matches(/^[a-zA-Z0-9_\s]+$/)
+        .withMessage('Username può contenere solo lettere, numeri, underscore e spazi'),
     body('email')
         .trim()
         .isEmail()
@@ -41,6 +43,16 @@ export const validateRegister = [
         .trim()
         .isLength({ max: 100 })
         .withMessage('Cognome troppo lungo'),
+    body('phone')
+        .optional()
+        .trim()
+        .matches(/^[+]?[\d\s-()]+$/)
+        .withMessage('Numero di telefono non valido'),
+    body('country_of_origin')
+        .optional()
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage('Paese di origine troppo lungo'),
     handleValidationErrors
 ];
 
