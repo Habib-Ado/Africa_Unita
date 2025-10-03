@@ -72,6 +72,76 @@ router.get('/my-status', authenticateToken, async (req, res) => {
     }
 });
 
+// GET /api/fees/user-status/:id - Ottieni stato pagamenti di un utente specifico (solo tesoriere/admin)
+router.get('/user-status/:id', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Controlla se la tabella membership_fees esiste
+        const tableExists = await query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'membership_fees'
+            );
+        `);
+
+        if (!tableExists.rows[0].exists) {
+            return res.json({
+                success: true,
+                data: {
+                    status: {
+                        total_fees: 0,
+                        paid_fees: 0,
+                        pending_fees: 0,
+                        overdue_fees: 0,
+                        last_payment_date: null,
+                        payment_status: 'no_fees'
+                    },
+                    fees: []
+                }
+            });
+        }
+
+        // Stato pagamenti
+        const statusResult = await query(
+            'SELECT * FROM check_member_payment_status($1)',
+            [id]
+        );
+
+        // Lista quote
+        const feesResult = await query(
+            `SELECT id, amount, due_date, status, paid_date, notes
+             FROM membership_fees
+             WHERE user_id = $1
+             ORDER BY due_date DESC
+             LIMIT 12`,
+            [id]
+        );
+
+        res.json({
+            success: true,
+            data: {
+                status: statusResult.rows[0] || {
+                    total_fees: 0,
+                    paid_fees: 0,
+                    pending_fees: 0,
+                    overdue_fees: 0,
+                    last_payment_date: null,
+                    payment_status: 'no_fees'
+                },
+                fees: feesResult.rows
+            }
+        });
+    } catch (error) {
+        console.error('Get user payment status error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore nel recupero dello stato pagamenti'
+        });
+    }
+});
+
 // GET /api/fees - Ottieni tutte le quote (solo tesoriere/admin)
 router.get('/', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {

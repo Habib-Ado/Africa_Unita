@@ -144,7 +144,7 @@ export default class extends AbstractView {
             });
 
             if (response.ok) {
-                const data = await response.json();
+            const data = await response.json();
                 this.paymentStatus = data.data?.status;
                 this.fees = data.data?.fees || [];
             } else {
@@ -169,7 +169,10 @@ export default class extends AbstractView {
     // Rimosso: getStatusLabel()
 
     updateUI() {
-        const roleDisplay = this.role === 'admin' ? 'Amministratore' : 'Membro';
+        const roleDisplay = this.role === 'admin' ? 'Amministratore' : 
+                            this.role=== 'moderator' ? 'Moderatore' :
+                            this.role === 'user' ? 'Membro' :
+                            this.role === 'treasurer' ? 'Tesoriere' : 'Membro';
 
         const profileContent = document.getElementById('profile-content');
         if (profileContent) {
@@ -191,23 +194,6 @@ export default class extends AbstractView {
                     </div>
                 </div>
 
-                <div class="profile-stats">
-                    ${this.role === 'artigiano' ? `
-                        <div class="stat-card">
-                            <h3>Statistiche</h3>
-                            <p>Prodotti totali: ${this.stats?.total_products || 0}</p>
-                            <p>Items totali: ${this.stats?.total_items || 0}</p>
-                        </div>
-                    ` : ''}
-                    ${this.role === 'admin' ? `
-                        <div class="stat-card">
-                            <h3>Statistiche</h3>
-                            <p>Utenti totali: ${this.stats?.total_users || 0}</p>
-                            <p>Prodotti totali: ${this.stats?.total_products || 0}</p>
-                            <p>Ordini totali: ${this.stats?.total_orders || 0}</p>
-                        </div>
-                    ` : ''}
-                </div>
 
                 ${this.role === 'admin' ? `
                     <div class="admin-panel">
@@ -243,7 +229,7 @@ export default class extends AbstractView {
         document.getElementById("address").value = this.userData.address || "";
         document.getElementById("email").value = this.userData.email || "";
         document.getElementById("city").value = this.userData.city || "";
-        document.getElementById("country_of_origin").value = this.userData.country_of_origin || "";
+        document.getElementById("country_of_origin").value = this.userData.country_of_origin || "Africa";
     }
 
     validateForm() {
@@ -411,205 +397,10 @@ export default class extends AbstractView {
 
     // Rimosso: viewOrderDetails() - non più necessario per associazione
     
-    async viewOrderDetails_removed(orderId) {
-        console.log('viewOrderDetails called with orderId:', orderId);
-        try {
-            const response = await fetch(`/api/orders/${orderId}`, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include'
-            });
-            
-            console.log('API Response status:', response.status);
-            
-            if (!response.ok) {
-                throw new Error('Errore nel recupero dei dettagli dell\'ordine');
-            }
-
-            const data = await response.json();
-            console.log('Order details data:', data);
-            
-            if (data.error) {
-                throw new Error(data.message);
-            }
-
-            const order = data.order;
-            console.log('Order data:', order);
-
-            // Assicurati che lo stato dell'ordine sia sempre definito
-            const orderStatus = order.status || 'pending';
-            console.log('Order status:', orderStatus);
-
-            const modal = document.getElementById('orderDetailsModal');
-            if (!modal) {
-                console.error('Modal element not found');
-                return;
-            }
-            
-            const modalContent = modal.querySelector('.modal-body');
-            if (!modalContent) {
-                console.error('Modal content element not found');
-                return;
-            }
-
-            // Calcola i totali
-            const itemsTotal = order.items.reduce((sum, item) => {
-                const itemTotal = item.quantity * item.price * (1 - (item.discount || 0) / 100);
-                return sum + itemTotal;
-            }, 0);
-
-            const total = parseFloat(order.total_amount);
-            const subtotal = itemsTotal;
-            const shippingCost = total - subtotal;
-
-            // Formatta il numero d'ordine
-            const orderNumber = `ORD-${String(order.id).padStart(6, '0')}`;
-
-            // Formatta le date
-            const orderDate = new Date(order.created_at).toLocaleDateString('it-IT', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-
-            // Calcola la data di consegna stimata (7 giorni dopo l'ordine)
-            const deliveryDate = new Date(order.created_at);
-            deliveryDate.setDate(deliveryDate.getDate() + 7);
-            const formattedDeliveryDate = deliveryDate.toLocaleDateString('it-IT', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-
-            // Ottieni il colore e l'etichetta dello stato
-            const statusColor = this.getStatusBadgeColor(orderStatus);
-            const statusLabel = this.getStatusLabel(orderStatus);
-            console.log('Status display:', { color: statusColor, label: statusLabel });
-
-            modalContent.innerHTML = `
-                <div class="order-details">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h4>Ordine ${orderNumber}</h4>
-                        <button class="btn btn-primary" id="downloadInvoiceBtn">
-                            <i class="fas fa-download"></i> Scarica Fattura
-                        </button>
-                    </div>
-                    <div class="order-info">
-                        <p><strong>Data ordine:</strong> ${orderDate}</p>
-                        <p><strong>Data consegna stimata:</strong> ${formattedDeliveryDate}</p>
-                        <p><strong>Stato:</strong> <span class="badge bg-${statusColor}">${statusLabel}</span></p>
-                    </div>
-                    <hr>
-                    <h5>Prodotti</h5>
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Prodotto</th>
-                                    <th>Quantità</th>
-                                    <th>Prezzo</th>
-                                    <th>Totale</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${order.items.map(item => {
-                                    const itemTotal = item.quantity * item.price * (1 - (item.discount || 0) / 100);
-                                    return `
-                                    <tr>
-                                        <td>
-                                            <div class="d-flex align-items-center">
-                                                <div>
-                                                        <a href="/product/${item.product_id}" class="text-decoration-none">
-                                                            ${item.name}
-                                                        </a>
-                                                        <small class="text-muted d-block">${item.description}</small>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>${item.quantity}</td>
-                                        <td>€${parseFloat(item.price).toFixed(2)}</td>
-                                            <td>€${itemTotal.toFixed(2)}</td>
-                                    </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                    <hr>
-                    <h5>Indirizzo di spedizione</h5>
-                    ${order.shipping_address ? `
-                        <p>${order.shipping_address.full_name}</p>
-                        <p>${order.shipping_address.address}</p>
-                        <p>${order.shipping_address.city}, ${order.shipping_address.postal_code}</p>
-                        <p>Tel: ${order.shipping_address.phone}</p>
-                    ` : '<p>Indirizzo non disponibile</p>'}
-                    <hr>
-                    <h5>Riepilogo</h5>
-                    <p><strong>Subtotale:</strong> €${subtotal.toFixed(2)}</p>
-                    <p><strong>Spedizione:</strong> €${shippingCost.toFixed(2)}</p>
-                    <p><strong>Totale:</strong> €${total.toFixed(2)}</p>
-                </div>
-            `;
-
-            // Aggiungi l'event listener per il pulsante di download
-            const downloadBtn = modalContent.querySelector('#downloadInvoiceBtn');
-            if (downloadBtn) {
-                downloadBtn.addEventListener('click', () => this.downloadInvoice(orderId));
-            }
-
-            const modalInstance = new bootstrap.Modal(modal);
-            modalInstance.show();
-        } catch (error) {
-            console.error('Error showing order details:', error);
-            this.showError('Errore nel recupero dei dettagli dell\'ordine');
-        }
-    }
-
-    async downloadInvoice(orderId) {
-        try {
-            const response = await fetch(`/api/orders/${orderId}/invoice`, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/pdf',
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include'
-            });
-
-            if (!response.ok) {
-                throw new Error('Errore nel download della fattura');
-            }
-
-            // Ottieni il blob del PDF
-            const blob = await response.blob();
-            
-            // Crea un URL per il blob
-            const url = window.URL.createObjectURL(blob);
-            
-            // Crea un link temporaneo per il download
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `fattura-ORD-${String(orderId).padStart(6, '0')}.pdf`;
-        
-            // Aggiungi il link al documento e simula il click
-            document.body.appendChild(link);
-            link.click();
-            
-            // Pulisci
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error('Error downloading invoice:', error);
-            this.showError('Errore nel download della fattura');
-        }
-    }
 
     initializeEventListeners() {
         // Rimosso: event listener ordini (non più necessario)
-        
+
         // Add event listener for edit profile button
         const editProfileButton = document.getElementById('edit-profile');
         if (editProfileButton) {
@@ -645,9 +436,10 @@ export default class extends AbstractView {
         
         console.log("User data before rendering:", this.userData);
         console.log("Role:", this.userData.role);
-        
+
         // Determina il ruolo visualizzato
-        const roleDisplay = this.userData.role === 'admin' ? 'Amministratore' : 'Membro';
+        const roleDisplay = this.userData.role === 'admin' ? 'Amministratore' : 
+                           this.userData.role === 'treasurer' ? 'Tesoriere' : 'Membro';
         
         return `
         <style>
@@ -674,6 +466,16 @@ export default class extends AbstractView {
 
             .profile-role {
                 color: #6c757d;
+            }
+
+            .profile-role.treasurer {
+                color: #f39c12;
+                font-weight: 600;
+            }
+
+            .profile-role.admin {
+                color: #e74c3c;
+                font-weight: 600;
             }
 
             .profile-section {
@@ -802,7 +604,11 @@ export default class extends AbstractView {
                     
                     <div class="profile-info">
                         <h1 class="profile-name">${this.userData.first_name} ${this.userData.last_name}</h1>
-                        <p class="profile-role">${roleDisplay}</p>
+                        <p class="profile-role ${this.userData.role}">
+                            <span class="badge ${this.userData.role === 'admin' ? 'bg-danger' : 
+                                                   this.userData.role === 'treasurer' ? 'bg-warning text-dark' : 
+                                                   'bg-primary'}">${roleDisplay}</span>
+                        </p>
                         
                         <div class="profile-actions">
                             <button id="edit-profile" class="profile-btn edit-profile-btn">
@@ -824,28 +630,28 @@ export default class extends AbstractView {
                                         <a href="/treasurer" class="btn btn-success w-100" data-link>
                                             <i class="fas fa-coins"></i> Accedi
                                         </a>
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${this.userData.role === 'admin' ? `
+                            </div>
+                            </div>
+                        ` : ''}
+                        ${this.userData.role === 'admin' ? `
                                 <div class="col-md-4">
-                                    <div class="admin-card">
-                                        <h5>Gestione Utenti</h5>
+                                <div class="admin-card">
+                                    <h5>Gestione Utenti</h5>
                                         <p>Gestisci i membri della piattaforma</p>
-                                        <a href="/admin/users" class="btn btn-primary w-100" data-link>
-                                            <i class="fas fa-users"></i> Accedi
-                                        </a>
-                                    </div>
+                                    <a href="/admin/users" class="btn btn-primary w-100" data-link>
+                                        <i class="fas fa-users"></i> Accedi
+                                    </a>
                                 </div>
+                            </div>
                                 <div class="col-md-4">
-                                    <div class="admin-card">
-                                        <h5>Statistiche</h5>
+                                <div class="admin-card">
+                                    <h5>Statistiche</h5>
                                         <p>Visualizza le statistiche dell'associazione</p>
                                         <a href="/admin/stats" class="btn btn-info w-100" data-link>
-                                            <i class="fas fa-chart-bar"></i> Accedi
-                                        </a>
-                                    </div>
+                                        <i class="fas fa-chart-bar"></i> Accedi
+                                    </a>
                                 </div>
+                            </div>
                             ` : ''}
                         </div>
                     </div>
@@ -877,37 +683,47 @@ export default class extends AbstractView {
                     <div class="profile-section mt-4">
                         <h2 class="section-title">Situazione Quote Associative</h2>
                         ${this.paymentStatus ? `
-                            <div class="alert ${this.paymentStatus.is_current ? 'alert-success' : 'alert-warning'} mb-3">
+                            <div class="alert ${this.paymentStatus.payment_status === 'up_to_date' ? 'alert-success' : 'alert-warning'} mb-3">
                                 <div class="d-flex align-items-center">
-                                    <i class="fas ${this.paymentStatus.is_current ? 'fa-check-circle' : 'fa-exclamation-triangle'} me-2 fs-4"></i>
+                                    <i class="fas ${this.paymentStatus.payment_status === 'up_to_date' ? 'fa-check-circle' : 'fa-exclamation-triangle'} me-2 fs-4"></i>
                                     <div>
-                                        <strong>${this.paymentStatus.is_current ? '✓ Sei in regola!' : '⚠ Pagamenti in sospeso'}</strong>
-                                        ${!this.paymentStatus.is_current ? `
+                                        <strong>${this.paymentStatus.payment_status === 'up_to_date' ? '✓ Sei in regola!' : '⚠ Pagamenti in sospeso'}</strong>
+                                        ${this.paymentStatus.payment_status !== 'up_to_date' ? `
                                             <div class="mt-1">
-                                                <small>Mesi non pagati: ${this.paymentStatus.months_overdue}</small><br>
-                                                <small>Totale da pagare: €${parseFloat(this.paymentStatus.total_unpaid).toFixed(2)}</small>
+                                                <small>Mesi non pagati: ${this.paymentStatus.overdue_fees || 0}</small><br>
+                                                <small>Totale da pagare: €${parseFloat(this.paymentStatus.overdue_fees || 0).toFixed(2)}</small>
                                             </div>
                                         ` : ''}
                                     </div>
-                                </div>
                             </div>
-                        ` : ''}
-                        
-                        <div class="table-responsive">
+                        </div>
+                    ` : `
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            Nessuna quota associativa registrata.
+                        </div>
+                    `}
+
+                            <div class="table-responsive">
                             <table class="table table-sm">
-                                <thead>
-                                    <tr>
+                                    <thead>
+                                        <tr>
                                         <th>Mese/Anno</th>
                                         <th>Importo</th>
-                                        <th>Stato</th>
+                                            <th>Stato</th>
                                         <th>Data Pagamento</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${this.fees.length > 0 ? this.fees.map(fee => `
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    ${this.fees.length > 0 ? this.fees.map(fee => {
+                                        // Formatta la data di scadenza
+                                        const dueDate = new Date(fee.due_date);
+                                        const monthYear = `${dueDate.getMonth() + 1}/${dueDate.getFullYear()}`;
+                                        
+                                        return `
                                         <tr>
-                                            <td>${fee.month}/${fee.year}</td>
-                                            <td>€${parseFloat(fee.amount).toFixed(2)}</td>
+                                            <td>${monthYear}</td>
+                                            <td>€${parseFloat(fee.amount || 0).toFixed(2)}</td>
                                             <td>
                                                 <span class="badge ${
                                                     fee.status === 'paid' ? 'bg-success' :
@@ -917,18 +733,19 @@ export default class extends AbstractView {
                                                     ${fee.status === 'paid' ? 'Pagato' : 
                                                       fee.status === 'overdue' ? 'Scaduto' : 
                                                       'In sospeso'}
-                                                </span>
-                                            </td>
-                                            <td>${fee.payment_date ? new Date(fee.payment_date).toLocaleDateString() : '-'}</td>
-                                        </tr>
-                                    `).join('') : `
+                                                    </span>
+                                                </td>
+                                            <td>${fee.paid_date ? new Date(fee.paid_date).toLocaleDateString() : '-'}</td>
+                                            </tr>
+                                        `;
+                                    }).join('') : `
                                         <tr>
                                             <td colspan="4" class="text-center text-muted">Nessuna quota registrata</td>
                                         </tr>
                                     `}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </tbody>
+                                </table>
+                            </div>
                         <div class="mt-2">
                             <small class="text-muted">
                                 <i class="fas fa-info-circle"></i> Quota mensile: €10,00. 
@@ -980,7 +797,7 @@ export default class extends AbstractView {
                                     <div class="form-group">
                                         <label for="city" class="form-label">Città</label>
                                         <input type="text" autocomplete="off" class="form-control" id="city">
-                                    </div>
+                                        </div>
                                     <div class="form-group">
                                         <label for="country_of_origin" class="form-label">Paese di origine</label>
                                         <input type="text" autocomplete="off" class="form-control" id="country_of_origin">

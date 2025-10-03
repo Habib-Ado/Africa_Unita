@@ -7,6 +7,8 @@ import Messages from "./views/Messages.js";
 import AdminUsers from "./views/AdminUsers.js";
 import AdminStats from "./views/AdminStats.js";
 import Treasurer from "./views/Treasurer.js";
+import Users from "./views/Users.js";
+import UserProfile from "./views/UserProfile.js";
 
 const pathToRegex = path => new RegExp("^" + path.replace(/\//g, "\\/").replace(/:\w+/g, "(.+)") + "$")
 const getParams = match => {
@@ -76,6 +78,16 @@ const router = async () => {
             view: Treasurer,
             requiresAuth: true,
             requiresTreasurer: true
+        },
+        {
+            path: "/users",
+            view: Users,
+            requiresAuth: true
+        },
+        {
+            path: "/profile/:id",
+            view: UserProfile,
+            requiresAuth: true
         }
     ]
 
@@ -188,20 +200,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     const profileButton = document.getElementById("profile-link")
     const registerButton = document.getElementById("btnRegister")
     const messagesButton = document.getElementById("btnMessages")
+    const usersButton = document.getElementById("btnUsers")
     const adminLink = document.getElementById("admin-link")
     const treasurerLink = document.getElementById("treasurer-link")
 
     try {
         const token = localStorage.getItem('auth_token')
         
-        // Se non c'è token, salta la chiamata API
-        if (!token) {
-            // User is not logged in
-            if (profileButton) profileButton.style.display = "none"
-            if (logoutButton) logoutButton.style.display = "none"
-            if (messagesButton) messagesButton.style.display = "none"
-            if (loginButton) loginButton.style.display = "block"
-            if (registerButton) registerButton.style.display = "block"
+            // Se non c'è token, salta la chiamata API
+            if (!token) {
+                // User is not logged in
+                if (profileButton) profileButton.style.display = "none"
+                if (logoutButton) logoutButton.style.display = "none"
+                if (messagesButton) messagesButton.style.display = "none"
+                if (usersButton) usersButton.style.display = "none"
+                if (loginButton) loginButton.style.display = "block"
+                if (registerButton) registerButton.style.display = "block"
         } else {
             const response = await apiFetch("/api/auth/me", {
                 method: "GET",
@@ -221,6 +235,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (logoutButton) logoutButton.style.display = "block"
                 if (profileButton) profileButton.style.display = "block"
                 if (messagesButton) messagesButton.style.display = "block"
+                if (usersButton) usersButton.style.display = "block"
                 // Mostra link admin/tesoriere in base al ruolo
                 if (adminLink && data.user?.role === 'admin') adminLink.style.display = "block"
                 if (treasurerLink && (data.user?.role === 'treasurer' || data.user?.role === 'admin')) treasurerLink.style.display = "block"
@@ -231,6 +246,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (profileButton) profileButton.style.display = "none"
                 if (logoutButton) logoutButton.style.display = "none"
                 if (messagesButton) messagesButton.style.display = "none"
+                if (usersButton) usersButton.style.display = "none"
                 if (loginButton) loginButton.style.display = "block"
                 if (registerButton) registerButton.style.display = "block"
             }

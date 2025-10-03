@@ -136,8 +136,42 @@ router.put('/change-password', authenticateToken, async (req, res) => {
     }
 });
 
-// GET /api/users - Lista utenti (solo admin)
-router.get('/', authenticateToken, requireRole('admin', 'moderator'), async (req, res) => {
+// GET /api/users/:id - Ottieni profilo di un utente specifico
+router.get('/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await query(
+            `SELECT id, uuid, username, email, first_name, last_name, phone, 
+                    country_of_origin, role, status, created_at
+             FROM users WHERE id = $1 AND status = 'active'`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Utente non trovato'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                user: result.rows[0]
+            }
+        });
+    } catch (error) {
+        console.error('Get user profile error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore nel recupero del profilo utente'
+        });
+    }
+});
+
+// GET /api/users - Lista utenti (per tutti gli utenti autenticati)
+router.get('/', authenticateToken, async (req, res) => {
     try {
         const { page = 1, limit = 20, search = '', role = '', status = '' } = req.query;
         const offset = (page - 1) * limit;

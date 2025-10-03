@@ -78,6 +78,16 @@ app.use('/api/fees', feesRoutes);
 const frontendPath = path.join(__dirname, '../frontend');
 app.use('/static', express.static(path.join(frontendPath, 'static')));
 
+// Serve favicon.ico from favicon.png
+app.get('/favicon.ico', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'static', 'img', 'favicon.png'));
+});
+
+// Handle Chrome DevTools requests
+app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
+    res.status(404).end();
+});
+
 // SPA fallback SOLO per rotte senza estensione (esclude /static/, /api/ e file con estensione)
 app.get('*', (req, res, next) => {
     // Se è una richiesta API, passa al next (404 handler)
@@ -98,10 +108,21 @@ app.get('*', (req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        message: 'Endpoint non trovato'
-    });
+    // Se è una richiesta per un file statico, restituisci 404 silenzioso
+    if (req.path.includes('.')) {
+        return res.status(404).end();
+    }
+    
+    // Per richieste API, restituisci JSON
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({
+            success: false,
+            message: 'Endpoint API non trovato'
+        });
+    }
+    
+    // Per altre richieste, restituisci 404 silenzioso
+    res.status(404).end();
 });
 
 // Global error handler

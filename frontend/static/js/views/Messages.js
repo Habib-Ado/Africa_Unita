@@ -107,10 +107,17 @@ export default class extends AbstractView {
             if (!response.ok) {
                 throw new Error("Failed to load messages");
             }
-            const messages = await response.json();
-            console.log("Loaded messages:", messages);
-            // Ordina i messaggi dal più vecchio al più nuovo
-            this.messages = messages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            const responseData = await response.json();
+            // Estrai l'array di messaggi dalla risposta
+            const messages = responseData.data?.messages || responseData.messages || [];
+            
+            // Verifica che sia un array prima di ordinare
+            if (Array.isArray(messages)) {
+                this.messages = messages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            } else {
+                console.warn("Messages is not an array:", messages);
+                this.messages = [];
+            }
             this.groupMessagesByUser();
         } catch (error) {
             console.error("Error loading messages:", error);
@@ -127,9 +134,15 @@ export default class extends AbstractView {
         this.conversations.clear();
         
         // I messaggi sono già ordinati per data in loadMessages()
-        this.messages.forEach(message => {
-            const otherUserId = message.sender_id === this.currentUser.id ? message.receiver_id : message.sender_id;
-            const otherUserName = message.sender_id === this.currentUser.id ? message.receiver_name : message.sender_name;
+        this.messages.forEach((message, index) => {
+            const otherUserId = message.sender_id === this.currentUser.id ? message.recipient_id : message.sender_id;
+            const otherUserName = message.sender_id === this.currentUser.id ? 
+                (message.recipient_first_name && message.recipient_last_name ? 
+                    `${message.recipient_first_name} ${message.recipient_last_name}` : 
+                    message.recipient_username || 'Utente sconosciuto') :
+                (message.sender_first_name && message.sender_last_name ? 
+                    `${message.sender_first_name} ${message.sender_last_name}` : 
+                    message.sender_username || 'Utente sconosciuto');
             
             if (!this.conversations.has(otherUserId)) {
                 this.conversations.set(otherUserId, {
@@ -151,6 +164,10 @@ export default class extends AbstractView {
                     this.showReplyModal(conversation);
                 }
             }
+            
+            if (e.target.id === "startNewMessageBtn" || e.target.closest("#startNewMessageBtn")) {
+                await this.showNewMessageModal();
+            }
         });
 
         const replyForm = document.getElementById("reply-form");
@@ -158,6 +175,14 @@ export default class extends AbstractView {
             replyForm.addEventListener("submit", async (e) => {
                 e.preventDefault();
                 await this.handleReply(e);
+            });
+        }
+
+        const newMessageForm = document.getElementById("new-message-form");
+        if (newMessageForm) {
+            newMessageForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                await this.sendNewMessage();
             });
         }
     }
@@ -249,8 +274,17 @@ export default class extends AbstractView {
         }
 
         let html = '';
+        
         if (this.conversations.size === 0) {
-            html = '<div class="alert alert-info">Non hai ancora messaggi.</div>';
+            html = `
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-info-circle"></i> Non hai ancora messaggi</h5>
+                    <p>Inizia una conversazione con un membro dell'associazione!</p>
+                    <button class="btn btn-primary" id="startNewMessageBtn">
+                        <i class="fas fa-plus"></i> Invia un messaggio
+                    </button>
+                </div>
+            `;
         } else {
             // Converti la Map in array e ordina le conversazioni per data del primo messaggio
             const sortedConversations = Array.from(this.conversations.values())
@@ -264,8 +298,8 @@ export default class extends AbstractView {
             html = sortedConversations.map(conversation => `
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="mb-0">Conversazione con ${conversation.name}</h5>
-                        <small class="text-muted">Iniziata il: ${new Date(conversation.messages[0].created_at).toLocaleString()}</small>
+                        <h5 class="mb-0">Conversazione con ${conversation.name || 'Utente sconosciuto'}</h5>
+                        <small class="text-muted">Iniziata il: ${conversation.messages[0] ? new Date(conversation.messages[0].created_at).toLocaleString() : 'Data sconosciuta'}</small>
                     </div>
                     <div class="card-body">
                         <div class="conversation-messages">
@@ -273,17 +307,20 @@ export default class extends AbstractView {
                                 <div class="message ${message.sender_id === this.currentUser.id ? 'sent' : 'received'} mb-3">
                                     <div class="message-content">
                                         <div class="message-header">
-                                            <strong>${message.sender_id === this.currentUser.id ? 'Tu' : message.sender_name}</strong>
-                                            <small class="text-muted">${new Date(message.created_at).toLocaleString()}</small>
+                                            <strong>${message.sender_id === this.currentUser.id ? 'Tu' : 
+                                                (message.sender_first_name && message.sender_last_name ? 
+                                                    `${message.sender_first_name} ${message.sender_last_name}` : 
+                                                    message.sender_username || 'Utente sconosciuto')}</strong>
+                                            <small class="text-muted">${message.created_at ? new Date(message.created_at).toLocaleString() : 'Data sconosciuta'}</small>
                                         </div>
-                                        <div class="message-subject"><strong>Oggetto:</strong> ${message.subject}</div>
-                                        <div class="message-text">${message.message}</div>
+                                        <div class="message-subject"><strong>Oggetto:</strong> ${message.subject || 'Nessun oggetto'}</div>
+                                        <div class="message-text">${message.content || message.message || 'Contenuto non disponibile'}</div>
                                     </div>
                                 </div>
                             `).join('')}
                         </div>
                         <button class="btn btn-primary reply-button" data-user-id="${conversation.userId}">
-                            Rispondi a ${conversation.name}
+                            Rispondi a ${conversation.name || 'Utente sconosciuto'}
                         </button>
                     </div>
                 </div>
@@ -296,7 +333,12 @@ export default class extends AbstractView {
     async getHtml() {
         return `
             <div class="container mt-4">
-                <h1>I tuoi messaggi</h1>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1><i class="fas fa-envelope"></i> I tuoi messaggi</h1>
+                    <button class="btn btn-primary" id="startNewMessageBtn">
+                        <i class="fas fa-plus"></i> Nuovo messaggio
+                    </button>
+                </div>
                 <div id="messages-list" class="mt-4"></div>
 
                 <div class="modal" id="replyModal" tabindex="-1" style="display: none;">
@@ -318,6 +360,42 @@ export default class extends AbstractView {
                                         <textarea class="form-control" id="message" name="message" rows="4" required></textarea>
                                     </div>
                                     <button type="submit" class="btn btn-primary">Invia messaggio</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal per nuovo messaggio -->
+                <div class="modal" id="newMessageModal" tabindex="-1" style="display: none;">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title"><i class="fas fa-envelope"></i> Nuovo messaggio</h5>
+                                <button type="button" class="btn-close" onclick="document.getElementById('newMessageModal').style.display='none'"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="new-message-form">
+                                    <div class="mb-3">
+                                        <label for="recipient-select" class="form-label">Destinatario</label>
+                                        <select class="form-select" id="recipient-select" name="recipient_id" required>
+                                            <option value="">Seleziona un membro...</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="new-subject" class="form-label">Oggetto</label>
+                                        <input type="text" class="form-control" id="new-subject" name="subject" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="new-content" class="form-label">Messaggio</label>
+                                        <textarea class="form-control" id="new-content" name="content" rows="5" required></textarea>
+                                    </div>
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('newMessageModal').style.display='none'">Annulla</button>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-paper-plane"></i> Invia messaggio
+                                        </button>
+                                    </div>
                                 </form>
                             </div>
                         </div>
@@ -442,5 +520,106 @@ export default class extends AbstractView {
                 </style>
             </div>
         `;
+    }
+
+    async showNewMessageModal() {
+        // Carica la lista degli utenti
+        await this.loadUsers();
+        
+        // Mostra il modal
+        const modal = document.getElementById('newMessageModal');
+        if (modal) {
+            modal.style.display = 'block';
+        }
+    }
+
+    async loadUsers() {
+        try {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch("http://localhost:3000/api/users", {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const users = data.data?.users || [];
+                
+                // Popola il select con gli utenti (escludendo l'utente corrente)
+                const select = document.getElementById('recipient-select');
+                if (select) {
+                    select.innerHTML = '<option value="">Seleziona un membro...</option>';
+                    users.forEach(user => {
+                        if (user.id !== this.currentUser.id) {
+                            const option = document.createElement('option');
+                            option.value = user.id;
+                            option.textContent = `${user.first_name || ''} ${user.last_name || ''} (@${user.username})`;
+                            select.appendChild(option);
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error loading users:', error);
+        }
+    }
+
+    async sendNewMessage() {
+        const form = document.getElementById('new-message-form');
+        if (!form) return;
+
+        const formData = new FormData(form);
+        const recipientId = formData.get('recipient_id');
+        const subject = formData.get('subject');
+        const content = formData.get('content');
+
+        if (!recipientId || !subject || !content) {
+            alert('Compila tutti i campi');
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch("http://localhost:3000/api/messages", {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    recipient_id: parseInt(recipientId),
+                    subject: subject,
+                    content: content
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Message sent:', result);
+                
+                // Chiudi il modal
+                const modal = document.getElementById('newMessageModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+                
+                // Pulisci il form
+                form.reset();
+                
+                // Ricarica i messaggi
+                await this.loadMessages();
+                this.updateMessagesList();
+                
+                alert('Messaggio inviato con successo!');
+            } else {
+                const error = await response.json();
+                alert('Errore nell\'invio del messaggio: ' + (error.message || 'Errore sconosciuto'));
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            alert('Errore nell\'invio del messaggio');
+        }
     }
 } 

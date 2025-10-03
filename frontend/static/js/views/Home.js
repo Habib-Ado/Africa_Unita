@@ -36,9 +36,9 @@ export default class extends AbstractView {
                             <span><i class="fas fa-folder"></i> ${p.category}</span>
                             <span><i class="fas fa-clock"></i> ${new Date(p.created_at).toLocaleDateString()}</span>
                         </div>
-                    </div>
-                </div>
-            </div>
+                                        </div>
+                                                    </div>
+                                                </div>
         `).join('');
 
         return `
@@ -46,10 +46,10 @@ export default class extends AbstractView {
             <div class="text-center mb-4">
                 <h1 class="fw-bold">Africa Unita</h1>
                 <p class="text-muted">Supporto a migranti africani: alloggio, formazione, lavoro, servizi, eventi.</p>
-            </div>
+                </div>
             <div class="row g-4">
                 ${cards || '<div class="col-12"><div class="alert alert-info">Nessun contenuto disponibile al momento.</div></div>'}
-            </div>
+                            </div>
         </div>`;
     }
 }
