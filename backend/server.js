@@ -1,3 +1,4 @@
+// Railway deployment trigger - FORCE REDEPLOY with MySQL fixes (v2)
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -14,6 +15,10 @@ import userRoutes from './routes/users.js';
 import messageRoutes from './routes/messages.js';
 import postRoutes from './routes/posts.js';
 import feesRoutes from './routes/fees.js';
+import contentRoutes from './routes/content.js';
+import commentRoutes from './routes/comments.js';
+import meetingRoutes from './routes/meetings.js';
+import loanRoutes from './routes/loans.js';
 
 // Configurazione
 dotenv.config();
@@ -22,7 +27,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // ============================================
 // MIDDLEWARE
@@ -72,11 +77,19 @@ app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/fees', feesRoutes);
+app.use('/api/content', contentRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/meetings', meetingRoutes);
+app.use('/api/loans', loanRoutes);
 
 
 // Serve frontend (anche in sviluppo, per comodità)
 const frontendPath = path.join(__dirname, '../frontend');
 app.use('/static', express.static(path.join(frontendPath, 'static')));
+
+// Serve uploaded files (images, documents, etc.)
+const uploadsPath = path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(uploadsPath));
 
 // Serve favicon.ico from favicon.png
 app.get('/favicon.ico', (req, res) => {

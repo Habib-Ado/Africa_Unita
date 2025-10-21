@@ -1,6 +1,6 @@
 # Africa Unita - Backend API
 
-Backend Node.js + Express + PostgreSQL per il progetto Africa Unita, un'associazione non-profit che aiuta i migranti africani con servizi di alloggio, formazione e lavoro.
+Backend Node.js + Express + MySQL per il progetto Africa Unita, un'associazione non-profit che aiuta i migranti africani con servizi di alloggio, formazione e lavoro.
 
 ## 📋 Indice
 
@@ -16,7 +16,7 @@ Backend Node.js + Express + PostgreSQL per il progetto Africa Unita, un'associaz
 ## 🔧 Requisiti
 
 - **Node.js** >= 16.x
-- **PostgreSQL** >= 13.x
+- **MySQL** >= 8.0
 - **npm** o **yarn**
 
 ## 📦 Installazione
@@ -47,9 +47,9 @@ NODE_ENV=development
 
 # Database Configuration
 DB_HOST=localhost
-DB_PORT=5432
+DB_PORT=3306
 DB_NAME=africa_unita_db
-DB_USER=postgres
+DB_USER=root
 DB_PASSWORD=your_password_here
 
 # JWT Configuration
@@ -71,9 +71,9 @@ npm run db:setup
 ```
 
 Questo script:
-- Crea il database PostgreSQL
+- Crea il database MySQL
 - Esegue tutte le migrations
-- Crea tabelle, indici, views e funzioni
+- Crea tabelle e indici
 
 ### 2. (Opzionale) Popola con dati di test
 
@@ -112,7 +112,7 @@ Health check: `http://localhost:3000/health`
 ```
 backend/
 ├── database/
-│   ├── db.js              # Pool connessioni PostgreSQL
+│   ├── db.js              # Pool connessioni MySQL
 │   └── schema.sql         # Schema database completo
 ├── middleware/
 │   ├── auth.js            # Autenticazione JWT
@@ -459,7 +459,7 @@ post_category: 'alloggio' | 'lavoro' | 'formazione' | 'servizi' | 'eventi' | 'al
 
 1. Imposta `NODE_ENV=production` nel file `.env`
 2. Genera un `JWT_SECRET` sicuro
-3. Configura il database PostgreSQL remoto
+3. Configura il database MySQL remoto (es. Railway MySQL)
 4. Usa un process manager come PM2:
 
 ```bash

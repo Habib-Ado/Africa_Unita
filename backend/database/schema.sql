@@ -1,59 +1,36 @@
--- ============================================
--- Africa Unita Database Schema
--- PostgreSQL Database Structure
--- ============================================
+-- Schéma correct pour Africa Unita
+-- Ce fichier correspond aux colonnes utilisées dans le code
 
--- Rimuovi database esistente se necessario (ATTENZIONE: solo per sviluppo)
--- DROP DATABASE IF EXISTS africa_unita_db;
--- CREATE DATABASE africa_unita_db;
+DROP TABLE IF EXISTS meeting_penalties;
+DROP TABLE IF EXISTS meeting_attendance;
+DROP TABLE IF EXISTS meetings;
+DROP TABLE IF EXISTS loan_installments;
+DROP TABLE IF EXISTS loans;
+DROP TABLE IF EXISTS fund_transactions;
+DROP TABLE IF EXISTS membership_fees;
+DROP TABLE IF EXISTS activity_logs;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS comments;
+DROP TABLE IF EXISTS content_files;
+DROP TABLE IF EXISTS site_content;
+DROP TABLE IF EXISTS favorites;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS post_files;
+DROP TABLE IF EXISTS posts;
+DROP TABLE IF EXISTS users;
 
--- Connettiti al database
--- \c africa_unita_db;
-
--- ============================================
--- EXTENSIONS
--- ============================================
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- ============================================
--- ENUM TYPES
--- ============================================
-
--- Ruoli utente
-CREATE TYPE user_role AS ENUM ('user', 'admin', 'moderator', 'treasurer');
-
--- Stato utente
-CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended', 'pending');
-
--- Tipo di messaggio
-CREATE TYPE message_status AS ENUM ('sent', 'delivered', 'read');
-
--- Categoria post/novità
-CREATE TYPE post_category AS ENUM ('alloggio', 'lavoro', 'formazione', 'servizi', 'eventi', 'altro');
-
--- Tipo di stato pagamento quota
-CREATE TYPE fee_status AS ENUM ('pending', 'paid', 'overdue', 'cancelled');
-
--- Tipo di transazione del fondo
-CREATE TYPE transaction_type AS ENUM ('income', 'expense');
-
--- ============================================
--- TABLES
--- ============================================
-
--- Tabella Utenti
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
+-- Table users
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) DEFAULT (UUID()) UNIQUE NOT NULL,
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     first_name VARCHAR(100),
     last_name VARCHAR(100),
     phone VARCHAR(20),
-    role user_role DEFAULT 'user' NOT NULL,
-    status user_status DEFAULT 'active' NOT NULL,
+    role ENUM('user', 'admin', 'president', 'moderator', 'treasurer') DEFAULT 'user' NOT NULL,
+    status ENUM('active', 'inactive', 'blocked', 'unblocked', 'suspended', 'pending', 'deleted') DEFAULT 'active' NOT NULL,
     avatar_url VARCHAR(500),
     bio TEXT,
     country_of_origin VARCHAR(100),
@@ -65,381 +42,264 @@ CREATE TABLE users (
     email_verified BOOLEAN DEFAULT FALSE,
     email_verification_token VARCHAR(255),
     password_reset_token VARCHAR(255),
-    password_reset_expires TIMESTAMP,
-    last_login TIMESTAMP,
+    password_reset_expires TIMESTAMP NULL,
+    last_login TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Tabella Posts/Novità (opportunità di lavoro, alloggi, formazioni, etc.)
-CREATE TABLE posts (
-    id SERIAL PRIMARY KEY,
-    uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+-- Table posts
+CREATE TABLE IF NOT EXISTS posts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) DEFAULT (UUID()) UNIQUE NOT NULL,
+    user_id INT,
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
-    category post_category NOT NULL,
+    category ENUM('alloggio', 'lavoro', 'formazione', 'servizi', 'eventi', 'altro') NOT NULL,
     location VARCHAR(255),
     contact_info TEXT,
     image_url VARCHAR(500),
     is_published BOOLEAN DEFAULT TRUE,
     is_featured BOOLEAN DEFAULT FALSE,
-    views_count INTEGER DEFAULT 0,
-    expires_at TIMESTAMP,
+    views_count INT DEFAULT 0,
+    expires_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Tabella Messaggi
+-- Table post_files
+CREATE TABLE post_files (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    post_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size BIGINT,
+    mime_type VARCHAR(100),
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+);
+
+-- Table messages
 CREATE TABLE messages (
-    id SERIAL PRIMARY KEY,
-    uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
-    sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    recipient_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) DEFAULT (UUID()) UNIQUE NOT NULL,
+    sender_id INT,
+    recipient_id INT,
     subject VARCHAR(255),
     content TEXT NOT NULL,
-    status message_status DEFAULT 'sent',
-    parent_message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
-    read_at TIMESTAMP,
+    status ENUM('sent', 'delivered', 'read') DEFAULT 'sent',
+    parent_message_id INT,
+    read_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Tabella Preferiti (salvare posts)
+-- Table favorites
 CREATE TABLE favorites (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    post_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, post_id)
+    UNIQUE KEY unique_user_post (user_id, post_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 
--- Tabella Commenti
+-- Table site_content
+CREATE TABLE site_content (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) DEFAULT (UUID()) UNIQUE NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT,
+    content_type ENUM('post', 'photo', 'video', 'document', 'announcement') NOT NULL,
+    status ENUM('draft', 'published', 'archived') DEFAULT 'draft',
+    author_id INT NOT NULL,
+    featured_image_url VARCHAR(500),
+    tags JSON,
+    view_count INT DEFAULT 0,
+    published_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Table content_files
+CREATE TABLE content_files (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    content_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size INT,
+    mime_type VARCHAR(100),
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (content_id) REFERENCES site_content(id) ON DELETE CASCADE
+);
+
+-- Table comments
 CREATE TABLE comments (
-    id SERIAL PRIMARY KEY,
-    uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
-    post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) DEFAULT (UUID()) UNIQUE NOT NULL,
+    post_id INT,
+    content_id INT,
+    user_id INT,
     content TEXT NOT NULL,
-    parent_comment_id INTEGER REFERENCES comments(id) ON DELETE CASCADE,
-    is_approved BOOLEAN DEFAULT TRUE,
+    parent_comment_id INT,
+    is_approved TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (content_id) REFERENCES site_content(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Tabella Notifiche
+-- Table notifications
 CREATE TABLE notifications (
-    id SERIAL PRIMARY KEY,
-    uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) DEFAULT (UUID()) UNIQUE NOT NULL,
+    user_id INT,
     type VARCHAR(50) NOT NULL,
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     link VARCHAR(500),
-    is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    is_read TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Tabella Log di Attività (per admin)
+-- Table activity_logs
 CREATE TABLE activity_logs (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
     action VARCHAR(100) NOT NULL,
     entity_type VARCHAR(50),
-    entity_id INTEGER,
-    ip_address INET,
+    entity_id INT,
+    ip_address VARCHAR(45),
     user_agent TEXT,
-    details JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    details JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Tabella Quote Associative Mensili
+-- Table membership_fees
 CREATE TABLE membership_fees (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     amount DECIMAL(10,2) NOT NULL DEFAULT 10.00,
     due_date DATE NOT NULL,
-    status fee_status NOT NULL DEFAULT 'pending',
-    paid_date TIMESTAMP,
+    status ENUM('pending', 'paid', 'overdue', 'cancelled') NOT NULL DEFAULT 'pending',
+    paid_date TIMESTAMP NULL,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, due_date)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_user_due_date (user_id, due_date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Tabella Transazioni del Fondo
+-- Table fund_transactions
 CREATE TABLE fund_transactions (
-    id SERIAL PRIMARY KEY,
-    transaction_type transaction_type NOT NULL,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    transaction_type ENUM('income', 'expense') NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
     description TEXT NOT NULL,
-    reference_id INTEGER,
-    treasurer_id INTEGER NOT NULL REFERENCES users(id),
+    reference_id INT,
+    treasurer_id INT NOT NULL,
     transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (treasurer_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- ============================================
--- INDEXES per performance
--- ============================================
+-- Table loans
+CREATE TABLE loans (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) DEFAULT (UUID()) UNIQUE NOT NULL,
+    user_id INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+    reason TEXT NOT NULL,
+    status ENUM('pending', 'approved', 'active', 'completed', 'cancelled', 'rejected') DEFAULT 'pending' NOT NULL,
+    approved_by INT,
+    approved_at TIMESTAMP NULL,
+    start_date DATE,
+    end_date DATE,
+    total_installments INT DEFAULT 10 NOT NULL,
+    installment_amount DECIMAL(10,2) NOT NULL,
+    paid_installments INT DEFAULT 0,
+    remaining_amount DECIMAL(10,2) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT check_installments CHECK (total_installments > 0 AND total_installments <= 12),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+);
 
--- Users indexes
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_status ON users(status);
-CREATE INDEX idx_users_role ON users(role);
+-- Table loan_installments
+CREATE TABLE loan_installments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    loan_id INT NOT NULL,
+    installment_number INT NOT NULL CHECK (installment_number > 0),
+    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+    due_date DATE NOT NULL,
+    paid_date TIMESTAMP NULL,
+    status ENUM('pending', 'paid', 'overdue') DEFAULT 'pending' NOT NULL,
+    payment_method VARCHAR(50),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_loan_installment (loan_id, installment_number),
+    FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE
+);
 
--- Posts indexes
-CREATE INDEX idx_posts_user_id ON posts(user_id);
-CREATE INDEX idx_posts_category ON posts(category);
-CREATE INDEX idx_posts_is_published ON posts(is_published);
-CREATE INDEX idx_posts_created_at ON posts(created_at DESC);
-CREATE INDEX idx_posts_featured ON posts(is_featured) WHERE is_featured = TRUE;
+-- Table meetings
+CREATE TABLE meetings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) DEFAULT (UUID()) UNIQUE NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    meeting_date DATE NOT NULL,
+    meeting_time TIME,
+    location VARCHAR(255),
+    created_by INT,
+    status VARCHAR(50) DEFAULT 'scheduled',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
 
--- Messages indexes
-CREATE INDEX idx_messages_sender ON messages(sender_id);
-CREATE INDEX idx_messages_recipient ON messages(recipient_id);
-CREATE INDEX idx_messages_status ON messages(status);
-CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
+-- Table meeting_attendance
+CREATE TABLE meeting_attendance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) DEFAULT (UUID()) UNIQUE NOT NULL,
+    meeting_id INT NOT NULL,
+    user_id INT NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'absent',
+    justification TEXT,
+    marked_by INT,
+    marked_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_meeting_user (meeting_id, user_id),
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (marked_by) REFERENCES users(id) ON DELETE SET NULL
+);
 
--- Favorites indexes
-CREATE INDEX idx_favorites_user_id ON favorites(user_id);
-CREATE INDEX idx_favorites_post_id ON favorites(post_id);
+-- Table meeting_penalties
+CREATE TABLE meeting_penalties (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(36) DEFAULT (UUID()) UNIQUE NOT NULL,
+    user_id INT NOT NULL,
+    meeting1_id INT NOT NULL,
+    meeting2_id INT NOT NULL,
+    amount DECIMAL(10, 2) DEFAULT 10.00,
+    status VARCHAR(50) DEFAULT 'pending',
+    paid_date DATE,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (meeting1_id) REFERENCES meetings(id) ON DELETE CASCADE,
+    FOREIGN KEY (meeting2_id) REFERENCES meetings(id) ON DELETE CASCADE
+);
 
--- Comments indexes
-CREATE INDEX idx_comments_post_id ON comments(post_id);
-CREATE INDEX idx_comments_user_id ON comments(user_id);
-
--- Notifications indexes
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_is_read ON notifications(is_read);
-
--- Activity logs indexes
-CREATE INDEX idx_activity_logs_user_id ON activity_logs(user_id);
-CREATE INDEX idx_activity_logs_created_at ON activity_logs(created_at DESC);
-
--- Membership fees indexes
-CREATE INDEX idx_membership_fees_user_id ON membership_fees(user_id);
-CREATE INDEX idx_membership_fees_due_date ON membership_fees(due_date);
-CREATE INDEX idx_membership_fees_status ON membership_fees(status);
-
--- Fund transactions indexes
-CREATE INDEX idx_fund_transactions_type ON fund_transactions(transaction_type);
-CREATE INDEX idx_fund_transactions_date ON fund_transactions(transaction_date);
-CREATE INDEX idx_fund_transactions_treasurer ON fund_transactions(treasurer_id);
-
--- ============================================
--- TRIGGERS per updated_at automatico
--- ============================================
-
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_posts_updated_at BEFORE UPDATE ON posts
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_messages_updated_at BEFORE UPDATE ON messages
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_comments_updated_at BEFORE UPDATE ON comments
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_membership_fees_updated_at BEFORE UPDATE ON membership_fees
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- ============================================
--- VIEWS UTILI
--- ============================================
-
--- Vista per messaggi con info sender e recipient
-CREATE VIEW messages_with_users AS
-SELECT 
-    m.id,
-    m.uuid,
-    m.subject,
-    m.content,
-    m.status,
-    m.read_at,
-    m.created_at,
-    s.id as sender_id,
-    s.username as sender_username,
-    s.first_name as sender_first_name,
-    s.last_name as sender_last_name,
-    s.avatar_url as sender_avatar,
-    r.id as recipient_id,
-    r.username as recipient_username,
-    r.first_name as recipient_first_name,
-    r.last_name as recipient_last_name,
-    r.avatar_url as recipient_avatar
-FROM messages m
-JOIN users s ON m.sender_id = s.id
-JOIN users r ON m.recipient_id = r.id;
-
--- Vista per posts con info autore
-CREATE VIEW posts_with_author AS
-SELECT 
-    p.id,
-    p.uuid,
-    p.title,
-    p.description,
-    p.category,
-    p.location,
-    p.contact_info,
-    p.image_url,
-    p.is_published,
-    p.is_featured,
-    p.views_count,
-    p.created_at,
-    p.updated_at,
-    u.id as author_id,
-    u.username as author_username,
-    u.first_name as author_first_name,
-    u.last_name as author_last_name,
-    u.avatar_url as author_avatar
-FROM posts p
-JOIN users u ON p.user_id = u.id;
-
--- ============================================
--- FUNZIONI UTILI
--- ============================================
-
--- Funzione per contare messaggi non letti
-CREATE OR REPLACE FUNCTION count_unread_messages(user_id_param INTEGER)
-RETURNS INTEGER AS $$
-BEGIN
-    RETURN (
-        SELECT COUNT(*)
-        FROM messages
-        WHERE recipient_id = user_id_param AND status != 'read'
-    );
-END;
-$$ LANGUAGE plpgsql;
-
--- Funzione per incrementare views su post
-CREATE OR REPLACE FUNCTION increment_post_views(post_id_param INTEGER)
-RETURNS VOID AS $$
-BEGIN
-    UPDATE posts 
-    SET views_count = views_count + 1 
-    WHERE id = post_id_param;
-END;
-$$ LANGUAGE plpgsql;
-
--- Funzione per controllare lo stato pagamenti di un membro
-CREATE OR REPLACE FUNCTION check_member_payment_status(member_id INTEGER)
-RETURNS TABLE(
-    total_fees DECIMAL(10,2),
-    paid_fees DECIMAL(10,2),
-    pending_fees DECIMAL(10,2),
-    overdue_fees DECIMAL(10,2),
-    last_payment_date TIMESTAMP,
-    payment_status TEXT
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        COALESCE(SUM(amount), 0) as total_fees,
-        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as paid_fees,
-        COALESCE(SUM(CASE WHEN status = 'pending' AND due_date >= CURRENT_DATE THEN amount ELSE 0 END), 0) as pending_fees,
-        COALESCE(SUM(CASE WHEN status = 'pending' AND due_date < CURRENT_DATE THEN amount ELSE 0 END), 0) as overdue_fees,
-        MAX(CASE WHEN status = 'paid' THEN paid_date END) as last_payment_date,
-        CASE 
-            WHEN COUNT(*) = 0 THEN 'no_fees'
-            WHEN SUM(CASE WHEN status = 'pending' AND due_date < CURRENT_DATE THEN 1 ELSE 0 END) > 0 THEN 'overdue'
-            WHEN SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) > 0 THEN 'pending'
-            ELSE 'up_to_date'
-        END as payment_status
-    FROM membership_fees 
-    WHERE user_id = member_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- Funzione per generare quote mensili per tutti i membri attivi
-CREATE OR REPLACE FUNCTION generate_monthly_fees(target_month DATE)
-RETURNS INTEGER AS $$
-DECLARE
-    fee_count INTEGER;
-BEGIN
-    INSERT INTO membership_fees (user_id, amount, due_date, status)
-    SELECT 
-        u.id,
-        10.00,
-        target_month,
-        'pending'
-    FROM users u
-    WHERE u.status = 'active' 
-    AND u.role IN ('user', 'treasurer')
-    AND NOT EXISTS (
-        SELECT 1 FROM membership_fees mf 
-        WHERE mf.user_id = u.id 
-        AND DATE_TRUNC('month', mf.due_date) = DATE_TRUNC('month', target_month)
-    );
-    
-    GET DIAGNOSTICS fee_count = ROW_COUNT;
-    RETURN fee_count;
-END;
-$$ LANGUAGE plpgsql;
-
--- Funzione per confermare pagamento quota
-CREATE OR REPLACE FUNCTION confirm_fee_payment(
-    fee_id INTEGER,
-    treasurer_id INTEGER,
-    payment_notes TEXT DEFAULT NULL
-)
-RETURNS BOOLEAN AS $$
-DECLARE
-    fee_record RECORD;
-    is_treasurer BOOLEAN;
-BEGIN
-    -- Verifica che l'utente sia un tesoriere
-    SELECT EXISTS(
-        SELECT 1 FROM users 
-        WHERE id = treasurer_id AND role = 'treasurer'
-    ) INTO is_treasurer;
-    
-    IF NOT is_treasurer THEN
-        RAISE EXCEPTION 'Solo i tesorieri possono confermare i pagamenti';
-    END IF;
-    
-    -- Recupera la quota
-    SELECT * INTO fee_record FROM membership_fees WHERE id = fee_id;
-    
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Quota non trovata';
-    END IF;
-    
-    -- Aggiorna la quota
-    UPDATE membership_fees 
-    SET 
-        status = 'paid',
-        paid_date = CURRENT_TIMESTAMP,
-        notes = COALESCE(payment_notes, notes),
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = fee_id;
-    
-    -- Aggiungi transazione al fondo
-    INSERT INTO fund_transactions (
-        transaction_type, 
-        amount, 
-        description, 
-        reference_id, 
-        treasurer_id
-    ) VALUES (
-        'income',
-        fee_record.amount,
-        'Pagamento quota associativa - ' || fee_record.user_id,
-        fee_id,
-        treasurer_id
-    );
-    
-    RETURN TRUE;
-END;
-$$ LANGUAGE plpgsql;

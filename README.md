@@ -1,227 +1,165 @@
-# Africa Unita - Piattaforma Web
+# Africa Unita - Sito Web
 
-> **UBUNTU** - "Io sono perché noi siamo"
+Sito web per l'associazione Africa Unita, dedicata al supporto per migranti africani.
 
-Piattaforma web per l'associazione non-profit **Africa Unita**, dedicata al supporto dei migranti africani in Italia, offrendo servizi di ricerca alloggio, opportunità di lavoro, formazione e supporto comunitario.
+## 🚀 Deployment su Railway
 
-## 📋 Descrizione Progetto
+### Quick Start (5 minuti)
+📖 **[Guida Rapida - QUICK_START_RAILWAY.md](./QUICK_START_RAILWAY.md)**
 
-Africa Unita è un sistema completo che permette a:
-- **Utenti**: Cercare alloggi, opportunità di lavoro, corsi di formazione
-- **Membri**: Pubblicare annunci, comunicare tra loro, gestire il proprio profilo
-- **Amministratori**: Gestire utenti, moderare contenuti, promuovere iniziative
-
-## 🏗️ Architettura
-
-### Stack Tecnologico
-
-**Frontend:**
-- HTML5, CSS3, JavaScript (Vanilla)
-- Bootstrap 5 per UI responsiva
-- Single Page Application (SPA) con routing client-side
-- Font Awesome per icone
-
-**Backend:**
-- Node.js + Express.js
-- PostgreSQL per database
-- JWT per autenticazione
-- bcrypt per sicurezza password
-
-### Struttura Progetto
-
-```
-Africa_Unita/
-├── frontend/               # Applicazione frontend
-│   ├── index.html         # Entry point
-│   └── static/
-│       ├── css/           # Styles
-│       ├── js/            # JavaScript modules
-│       │   ├── index.js   # Router principale
-│       │   └── views/     # Componenti view
-│       └── img/           # Immagini
-│
-├── backend/               # API Backend
-│   ├── server.js         # Entry point server
-│   ├── database/         # Database config e schema
-│   ├── routes/           # API routes
-│   ├── middleware/       # Middleware (auth, validation)
-│   └── scripts/          # Utility scripts
-│
-└── README.md
-```
-
-## 🚀 Quick Start
-
-### Prerequisiti
-
-- Node.js >= 16.x
-- PostgreSQL >= 13.x
-- npm o yarn
-
-### 1. Setup Backend
-
-```bash
-# Naviga nella cartella backend
-cd backend
-
-# Installa dipendenze
-npm install
-
-# Configura environment variables
-cp .env.example .env
-# Modifica .env con le tue configurazioni
-
-# Setup database
-npm run db:setup
-
-# (Opzionale) Popola con dati di test
-npm run db:seed
-
-# Avvia server
-npm run dev
-```
-
-Il backend sarà disponibile su `http://localhost:3000`
-
-### 2. Setup Frontend
-
-Per sviluppo locale, puoi usare un server HTTP semplice:
-
-```bash
-# Dalla root del progetto
-npx http-server frontend -p 8080 -c-1
-```
-
-Oppure usa Live Server in VS Code.
-
-Il frontend sarà disponibile su `http://localhost:8080`
-
-### 3. Test con Account Predefiniti
-
-Dopo aver eseguito `npm run db:seed`, puoi usare:
-
-- **Admin**: admin@africaunita.org / Password123!
-- **Utente 1**: mario@test.com / Password123!
-- **Utente 2**: fatou@test.com / Password123!
-
-## 📱 Funzionalità
-
-### Per Tutti gli Utenti
-- ✅ Visualizzazione annunci (alloggi, lavoro, formazione, servizi, eventi)
-- ✅ Ricerca e filtraggio annunci
-- ✅ Visualizzazione profili pubblici
-- ✅ Registrazione e login
-
-### Per Utenti Registrati
-- ✅ Pubblicazione annunci
-- ✅ Sistema messaggistica privata
-- ✅ Gestione profilo personale
-- ✅ Salvataggio annunci preferiti
-- ✅ Notifiche
-
-### Per Amministratori
-- ✅ Gestione utenti (attivazione, sospensione, ruoli)
-- ✅ Moderazione contenuti
-- ✅ Promozione annunci in evidenza
-- ✅ Dashboard statistiche
-- ✅ Log delle attività
-
-## 🔌 API Endpoints
-
-### Autenticazione
-- `POST /api/auth/register` - Registrazione
-- `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Info utente corrente
-- `POST /api/auth/forgot-password` - Reset password
-- `POST /api/auth/reset-password` - Conferma reset
-
-### Utenti
-- `GET /api/users/profile/:id` - Profilo pubblico
-- `PUT /api/users/profile` - Aggiorna profilo
-- `GET /api/users` - Lista utenti (admin)
-- `PUT /api/users/:id/status` - Cambia stato (admin)
-- `PUT /api/users/:id/role` - Cambia ruolo (admin)
-
-### Posts/Annunci
-- `GET /api/posts` - Lista annunci
-- `GET /api/posts/:id` - Dettaglio annuncio
-- `POST /api/posts` - Crea annuncio
-- `PUT /api/posts/:id` - Aggiorna annuncio
-- `DELETE /api/posts/:id` - Elimina annuncio
-- `POST /api/posts/:id/favorite` - Aggiungi/rimuovi preferito
-
-### Messaggi
-- `GET /api/messages` - Lista messaggi
-- `GET /api/messages/:id` - Dettaglio messaggio
-- `POST /api/messages` - Invia messaggio
-- `GET /api/messages/conversations/list` - Lista conversazioni
-- `GET /api/messages/unread-count` - Conta non letti
-
-Documentazione API completa: [backend/README.md](backend/README.md)
-
-## 🗄️ Database
-
-### Tabelle Principali
-
-- **users**: Utenti della piattaforma
-- **posts**: Annunci/posts categorizzati
-- **messages**: Messaggistica privata
-- **favorites**: Posts salvati
-- **comments**: Commenti sui posts
-- **notifications**: Sistema notifiche
-- **activity_logs**: Log attività (audit)
-
-Schema completo in: [backend/database/schema.sql](backend/database/schema.sql)
-
-## 🔐 Sicurezza
-
-- Password hashate con bcrypt
-- Autenticazione JWT stateless
-- Validazione input server-side
-- Protezione SQL injection
-- Headers di sicurezza (Helmet)
-- CORS configurabile
-
-## 📈 Prossimi Sviluppi
-
-- [ ] Upload immagini per annunci e avatar
-- [ ] Sistema notifiche real-time (WebSocket)
-- [ ] Invio email (reset password, notifiche)
-- [ ] Sistema di rating/recensioni
-- [ ] Mappa interattiva per alloggi
-- [ ] App mobile (React Native)
-- [ ] Integrazione calendario eventi
-- [ ] Sistema di chat real-time
-
-## 🛠️ Sviluppo
-
-### Comandi Utili
-
-```bash
-# Backend
-npm run dev          # Sviluppo con auto-reload
-npm start            # Produzione
-npm run db:setup     # Setup database
-npm run db:seed      # Seed dati test
-
-# Frontend
-# Usa qualsiasi server HTTP statico
-```
-
-### Environment Variables
-
-Vedi `.env.example` per tutte le variabili configurabili.
-
-## 📞 Contatti
-
-**Africa Unita**
-- Email: adobinesse@gmail.com
-- Location: Varese, Italia
-
-## 📄 Licenza
-
-Progetto interno per Africa Unita - Associazione Non-Profit
+### Guida Completa
+📚 **[Guida Completa Deployment - RAILWAY_DEPLOYMENT_GUIDE.md](./RAILWAY_DEPLOYMENT_GUIDE.md)**
 
 ---
 
-**Sviluppato con ❤️ per la comunità africana in Italia**
+## 💻 Sviluppo Locale
+
+### Prerequisiti
+- Node.js (versione 18+)
+- MySQL 8.0+
+- npm
+
+### Installazione
+
+```bash
+# 1. Clona il repository
+git clone <repository-url>
+cd Africa_Unita
+
+# 2. Installa dipendenze backend
+cd backend
+npm install
+
+# 3. Genera chiavi segrete
+npm run generate-secrets
+
+# 4. Configura variabili d'ambiente
+cp env.example .env
+# Modifica .env con le tue configurazioni
+
+# 5. Testa connessione database
+npm run test-connection
+
+# 6. Inizializza database
+npm run db:setup
+npm run db:seed
+
+# 7. Avvia server in modalità sviluppo
+npm run dev
+```
+
+### Accesso Locale
+- **URL:** http://localhost:3000
+- **Health Check:** http://localhost:3000/health
+
+### Credenziali di Test (dopo seed)
+- **Admin:** admin@africaunita.it / password123
+- **Moderatore:** moderator@africaunita.it / password123
+- **Tesoriere:** treasurer@africaunita.it / password123
+
+## 📋 Funzionalità
+
+- **Autenticazione utenti** con ruoli (admin, moderator, treasurer, user)
+- **Gestione contenuti** per moderatori
+- **Sistema quote associative** per tesorieri
+- **Messaggi privati** tra utenti
+- **Profilo utente** personalizzato
+
+## 🛠️ Struttura Progetto
+
+```
+├── backend/           # Server Node.js + Express
+│   ├── database/      # Schema database MySQL
+│   ├── routes/        # API endpoints
+│   └── scripts/       # Script di setup
+├── frontend/          # Frontend SPA
+│   ├── static/        # CSS, JS, immagini
+│   └── index.html     # Pagina principale
+└── README.md          # Questo file
+```
+
+## 🔧 Comandi Disponibili
+
+```bash
+# Sviluppo
+npm start              # Avvia server in produzione
+npm run dev            # Avvia server con auto-reload
+
+# Database
+npm run db:setup       # Crea tabelle e schema
+npm run db:seed        # Popola con dati di test
+npm run test-connection # Testa connessione database
+
+# Utilità
+npm run generate-fees     # Genera quote mensili
+npm run generate-secrets  # Genera JWT_SECRET e altre chiavi
+
+# Deployment
+# Vedi QUICK_START_RAILWAY.md per Railway deployment
+```
+
+## 📝 Note Importanti
+
+### Sviluppo
+- Il database MySQL deve essere in esecuzione
+- Le configurazioni sono in `backend/config.js`
+- Il frontend è una SPA (Single Page Application)
+- File `.env` per variabili d'ambiente (vedi `env.example`)
+
+### Produzione (Railway)
+- Usa sempre `JWT_SECRET` forte e casuale
+- Configura `CORS_ORIGIN` con l'URL corretto
+- Railway fornisce automaticamente `DATABASE_URL`
+- File upload: considera storage esterno (S3, Cloudinary)
+- SSL/TLS: fornito automaticamente da Railway
+
+## 🔒 Sicurezza
+
+- ✅ Password hashate con bcrypt
+- ✅ JWT per autenticazione
+- ✅ Helmet.js per security headers
+- ✅ CORS configurabile
+- ✅ Validazione input con express-validator
+- ✅ Protezione SQL injection con parametrized queries
+
+## 📚 Documentazione
+
+- [Quick Start Railway](./QUICK_START_RAILWAY.md) - Deploy in 5 minuti
+- [Guida Completa Railway](./RAILWAY_DEPLOYMENT_GUIDE.md) - Documentazione dettagliata
+- [Schema Database MySQL](./backend/database/schema.sql) - Struttura completa database
+- [API Routes](./backend/routes/) - Documentazione API endpoints
+
+## 🐛 Troubleshooting
+
+### Database non si connette
+```bash
+npm run test-connection  # Testa la connessione e mostra diagnostica
+```
+
+### Reset completo database
+```bash
+npm run db:setup  # Ricrea tutte le tabelle
+npm run db:seed   # Ripopola con dati di test
+```
+
+### Problemi con Railway
+Consulta la sezione Troubleshooting in [RAILWAY_DEPLOYMENT_GUIDE.md](./RAILWAY_DEPLOYMENT_GUIDE.md)
+
+## 🤝 Contribuire
+
+1. Fork del progetto
+2. Crea un branch per la tua feature (`git checkout -b feature/AmazingFeature`)
+3. Commit delle modifiche (`git commit -m 'Add some AmazingFeature'`)
+4. Push al branch (`git push origin feature/AmazingFeature`)
+5. Apri una Pull Request
+
+## 📄 Licenza
+
+Questo progetto è sviluppato per l'associazione Africa Unita.
+
+## 📞 Supporto
+
+Per problemi o domande:
+- Apri un issue su GitHub
+- Consulta la documentazione in `/docs`
+- Controlla [Railway Docs](https://docs.railway.app) per problemi di deployment

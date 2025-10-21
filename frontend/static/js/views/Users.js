@@ -9,6 +9,14 @@ export default class extends AbstractView {
         this.filteredUsers = [];
         this.currentUser = null;
         this.isAuthenticated = null; // null = loading, true = authenticated, false = not authenticated
+        this.stats = {
+            total: 0,
+            admins: 0,
+            moderators: 0,
+            members: 0,
+            online: 0
+        };
+        this.viewMode = 'grid'; // 'grid' o 'list'
     }
 
     async init() {
@@ -21,7 +29,7 @@ export default class extends AbstractView {
                 return;
             }
 
-            const response = await fetch("http://localhost:3000/api/auth/me", {
+            const response = await fetch("/api/auth/me", {
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
@@ -36,11 +44,12 @@ export default class extends AbstractView {
                 this.currentUser = data.data?.user;
                 this.isAuthenticated = true;
                 console.log('User authenticated:', this.currentUser);
-                await this.loadUsers();
-                this.initializeEventListeners();
                 
-                // Forza il re-rendering dopo l'autenticazione
-                this.updateView();
+                // Carica i membri automaticamente
+                await this.loadUsers();
+                
+                // Inizializza gli event listener
+                this.initializeEventListeners();
             } else {
                 console.log('Auth failed, status:', response.status);
                 this.isAuthenticated = false;
@@ -56,7 +65,7 @@ export default class extends AbstractView {
     async loadUsers() {
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch("http://localhost:3000/api/users", {
+            const response = await fetch("/api/users", {
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
@@ -69,11 +78,55 @@ export default class extends AbstractView {
                 this.users = data.data?.users || [];
                 this.filteredUsers = [...this.users];
                 console.log('Users array length:', this.users.length);
+                this.calculateStats();
                 this.updateUsersList();
+                this.updateStats();
             }
         } catch (error) {
             console.error('Error loading users:', error);
         }
+    }
+    
+    calculateStats() {
+        this.stats.total = this.users.length;
+        this.stats.admins = this.users.filter(u => u.role === 'admin').length;
+        this.stats.moderators = this.users.filter(u => u.role === 'moderator').length;
+        this.stats.members = this.users.filter(u => u.role === 'user').length;
+        this.stats.online = Math.floor(this.users.length * 0.3); // Simulazione
+    }
+    
+    updateStats() {
+        const elements = {
+            total: document.getElementById('stat-total'),
+            admins: document.getElementById('stat-admins'),
+            moderators: document.getElementById('stat-moderators'),
+            members: document.getElementById('stat-members')
+        };
+        
+        // Anima i contatori
+        Object.keys(elements).forEach(key => {
+            if (elements[key]) {
+                this.animateCounter(elements[key], this.stats[key]);
+            }
+        });
+    }
+    
+    animateCounter(element, target) {
+        const duration = 1500;
+        const increment = target / (duration / 16);
+        let current = 0;
+        
+        const updateCounter = () => {
+            current += increment;
+            if (current < target) {
+                element.textContent = Math.floor(current);
+                requestAnimationFrame(updateCounter);
+            } else {
+                element.textContent = target;
+            }
+        };
+        
+        updateCounter();
     }
 
     updateUsersList() {
@@ -87,57 +140,100 @@ export default class extends AbstractView {
         if (this.filteredUsers.length === 0) {
             usersList.innerHTML = `
                 <div class="col-12">
-                    <div class="alert alert-info text-center">
-                        <i class="fas fa-info-circle"></i>
-                        Nessun utente trovato con i criteri di ricerca selezionati.
+                    <div class="no-results-card">
+                        <i class="fas fa-search fa-3x mb-3"></i>
+                        <h4>Nessun membro trovato</h4>
+                        <p class="text-muted">Prova a modificare i criteri di ricerca</p>
                     </div>
                 </div>
             `;
             return;
         }
 
-        usersList.innerHTML = this.filteredUsers.map(user => `
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="avatar-circle me-3 d-flex align-items-center justify-content-center">
-                                <i class="fas fa-user text-white"></i>
+        const roleColors = {
+            'admin': 'role-admin',
+            'moderator': 'role-moderator',
+            'treasurer': 'role-treasurer',
+            'user': 'role-member'
+        };
+
+        usersList.innerHTML = this.filteredUsers.map((user, index) => {
+            // Costruisci l'URL dell'avatar con cache busting
+            const avatarUrl = user.avatar_url 
+                ? `${API_BASE}${user.avatar_url}?t=${Date.now()}` 
+                : null;
+            
+            return `
+            <div class="col-md-6 col-lg-4 animate-fade-in" style="animation-delay: ${index * 0.05}s">
+                <div class="member-card ${roleColors[user.role] || 'role-member'}">
+                    <div class="member-card-header">
+                        <div class="member-avatar ${roleColors[user.role] || 'role-member'}">
+                            ${avatarUrl ? 
+                                `<img src="${avatarUrl}" alt="${user.first_name}" style="object-fit: cover;">` :
+                                `<span class="avatar-initials">${this.getInitials(user)}</span>`
+                            }
+                        </div>
+                        <span class="role-badge ${roleColors[user.role] || 'role-member'}">
+                            ${this.getRoleIcon(user.role)} ${this.getRoleDisplay(user.role)}
+                        </span>
+                    </div>
+                    
+                    <div class="member-card-body">
+                        <h5 class="member-name">${user.first_name || ''} ${user.last_name || ''}</h5>
+                        <p class="member-username">@${user.username}</p>
+                        
+                        <div class="member-info">
+                            <div class="info-item">
+                                <i class="fas fa-envelope"></i>
+                                <span>${user.email}</span>
                             </div>
-                            <div>
-                                <h6 class="card-title mb-0">${user.first_name || ''} ${user.last_name || ''}</h6>
-                                <small class="text-muted">@${user.username}</small>
-                            </div>
+                            ${user.city ? `
+                                <div class="info-item">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span>${user.city}</span>
+                                </div>
+                            ` : ''}
+                            ${user.country_of_origin ? `
+                                <div class="info-item">
+                                    <i class="fas fa-globe-africa"></i>
+                                    <span>${user.country_of_origin}</span>
+                                </div>
+                            ` : ''}
+                        </div>
                         </div>
                         
-                        <div class="mb-3">
-                            <p class="card-text small">
-                                <i class="fas fa-envelope text-muted me-1"></i>
-                                ${user.email}
-                            </p>
-                            <p class="card-text small">
-                                <i class="fas fa-user-tag text-muted me-1"></i>
-                                ${this.getRoleDisplay(user.role)}
-                            </p>
-                        </div>
-                        
-                        <div class="d-grid gap-2 mt-auto">
-                            <button class="btn btn-outline-primary btn-sm view-profile-btn" data-user-id="${user.id}">
-                                <i class="fas fa-user"></i> Vedi Profilo
+                    <div class="member-card-footer">
+                        <button class="btn-member-action btn-primary view-profile-btn" data-user-id="${user.id}">
+                            <i class="fas fa-user"></i> Profilo
                             </button>
-                            <button class="btn btn-success btn-sm send-message-btn" data-user-id="${user.id}" data-username="${user.username}">
-                                <i class="fas fa-envelope"></i> Invia Messaggio
+                        <button class="btn-member-action btn-success send-message-btn" data-user-id="${user.id}" data-username="${user.username}">
+                            <i class="fas fa-envelope"></i> Messaggio
                             </button>
-                        </div>
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
+    }
+    
+    getInitials(user) {
+        const first = user.first_name?.charAt(0) || user.username?.charAt(0) || '?';
+        const last = user.last_name?.charAt(0) || '';
+        return (first + last).toUpperCase();
+    }
+    
+    getRoleIcon(role) {
+        const icons = {
+            'admin': '👑',
+            'moderator': '✏️',
+            'treasurer': '💰',
+            'user': '👤'
+        };
+        return icons[role] || '👤';
     }
 
     initializeEventListeners() {
         // Event listener per la ricerca
-        const searchInput = document.getElementById('userSearch');
+        const searchInput = document.getElementById('search-users');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 this.filterUsers();
@@ -145,7 +241,7 @@ export default class extends AbstractView {
         }
 
         // Event listener per il filtro ruolo
-        const roleFilter = document.getElementById('roleFilter');
+        const roleFilter = document.getElementById('filter-role');
         if (roleFilter) {
             roleFilter.addEventListener('change', (e) => {
                 this.filterUsers();
@@ -153,18 +249,12 @@ export default class extends AbstractView {
         }
 
         // Event listener per il pulsante aggiorna
-        const refreshBtn = document.getElementById('refreshUsersBtn');
+        const refreshBtn = document.getElementById('refresh-btn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
+                refreshBtn.classList.add('spinning');
                 this.loadUsers();
-            });
-        }
-
-        // Event listener per il pulsante messaggi
-        const messagesBtn = document.getElementById('btnMessages');
-        if (messagesBtn) {
-            messagesBtn.addEventListener('click', () => {
-                navigateTo('/messages');
+                setTimeout(() => refreshBtn.classList.remove('spinning'), 1000);
             });
         }
 
@@ -184,8 +274,8 @@ export default class extends AbstractView {
     }
 
     filterUsers() {
-        const searchTerm = document.getElementById('userSearch')?.value.toLowerCase() || '';
-        const roleFilter = document.getElementById('roleFilter')?.value || '';
+        const searchTerm = document.getElementById('search-users')?.value.toLowerCase() || '';
+        const roleFilter = document.getElementById('filter-role')?.value || '';
 
         // Filtra l'utente corrente dalla lista
         this.filteredUsers = this.users.filter(user => {
@@ -230,98 +320,92 @@ export default class extends AbstractView {
     }
 
     async getHtml() {
-        // Se l'autenticazione è in corso (null), mostra loading
-        if (this.isAuthenticated === null) {
-            return `
-                <div class="container mt-4">
-                    <div class="text-center">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">Caricamento...</span>
-                        </div>
-                        <p class="mt-2">Verifica autenticazione...</p>
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Se l'autenticazione è fallita (false), mostra errore
-        if (this.isAuthenticated === false) {
-            return `
-                <div class="container mt-4">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        Devi essere autenticato per vedere questa pagina.
-                    </div>
-                </div>
-            `;
-        }
-
         return `
-            <style>
-                .avatar-circle {
-                    width: 50px;
-                    height: 50px;
-                    border-radius: 50%;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: white;
-                    font-size: 1.2rem;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                .card {
-                    transition: transform 0.2s ease-in-out;
-                }
-                .card:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                }
-            </style>
-            <div class="container mt-4">
-                <div class="row">
-                    <div class="col-12">
-                        <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h1 class="h3 mb-0">
-                                <i class="fas fa-users text-primary"></i> Membri dell'Associazione
+            <div class="modern-members-container">
+                <div class="container py-5">
+                    <!-- Hero Header -->
+                    <div class="members-hero-header mb-5 animate-fade-in">
+                        <div class="hero-content">
+                            <h1 class="hero-title">
+                                <i class="fas fa-users"></i> 
+                                Membri dell'Associazione
                             </h1>
-                            <div>
-                                <button class="btn btn-outline-secondary" id="btnMessages">
-                                    <i class="fas fa-comments"></i> Messaggi
-                                </button>
+                            <p class="hero-subtitle">Scopri e connettiti con i membri della nostra community</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Statistics Cards -->
+                    <div class="row g-4 mb-5">
+                        <div class="col-md-3">
+                            <div class="stat-card-members stat-gradient-1 animate-fade-in">
+                                <div class="stat-icon-members">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="stat-number-members" id="stat-total">0</div>
+                                <div class="stat-label-members">Membri Totali</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card-members stat-gradient-2 animate-fade-in" style="animation-delay: 0.1s">
+                                <div class="stat-icon-members">
+                                    <i class="fas fa-crown"></i>
+                                </div>
+                                <div class="stat-number-members" id="stat-admins">0</div>
+                                <div class="stat-label-members">Amministratori</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card-members stat-gradient-3 animate-fade-in" style="animation-delay: 0.2s">
+                                <div class="stat-icon-members">
+                                    <i class="fas fa-user-edit"></i>
+                                </div>
+                                <div class="stat-number-members" id="stat-moderators">0</div>
+                                <div class="stat-label-members">Moderatori</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card-members stat-gradient-4 animate-fade-in" style="animation-delay: 0.3s">
+                                <div class="stat-icon-members">
+                                    <i class="fas fa-user-friends"></i>
+                                </div>
+                                <div class="stat-number-members" id="stat-members">0</div>
+                                <div class="stat-label-members">Membri Attivi</div>
+                            </div>
                             </div>
                         </div>
 
-                        <!-- Barra di ricerca -->
-                        <div class="row mb-4">
-                            <div class="col-md-6">
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-search"></i>
-                                    </span>
-                                    <input type="text" class="form-control" id="search-users" placeholder="Cerca per nome, username o email...">
+                    <!-- Search and Filters -->
+                    <div class="members-filters mb-4 animate-fade-in" style="animation-delay: 0.4s">
+                        <div class="row g-3">
+                            <div class="col-lg-6">
+                                <div class="search-box">
+                                    <i class="fas fa-search search-icon"></i>
+                                    <input type="text" 
+                                           class="form-control search-input" 
+                                           id="search-users" 
+                                           placeholder="Cerca per nome, username o email...">
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <select class="form-select" id="filter-role">
-                                    <option value="">Tutti i ruoli</option>
-                                    <option value="user">Membro</option>
-                                    <option value="treasurer">Tesoriere</option>
-                                    <option value="admin">Amministratore</option>
+                            <div class="col-lg-3">
+                                <select class="form-select filter-select" id="filter-role">
+                                    <option value="">🎯 Tutti i ruoli</option>
+                                    <option value="admin">👑 Amministratori</option>
+                                    <option value="moderator">✏️ Moderatori</option>
+                                    <option value="treasurer">💰 Tesorieri</option>
+                                    <option value="user">👤 Membri</option>
                                 </select>
                             </div>
-                            <div class="col-md-3">
-                                <button class="btn btn-outline-primary w-100" id="refreshUsersBtn">
-                                    <i class="fas fa-sync"></i> Aggiorna
+                            <div class="col-lg-3">
+                                <button class="btn-refresh w-100" id="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i> Aggiorna
                                 </button>
                             </div>
                         </div>
-
-                        <!-- Lista utenti -->
-                        <div class="row" id="users-list">
-                            <!-- Popolato dinamicamente -->
                         </div>
 
+                    <!-- Members Grid -->
+                    <div class="row g-4" id="users-list">
+                        <!-- Popolato dinamicamente -->
                     </div>
                 </div>
             </div>

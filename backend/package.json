@@ -1,5 +1,5 @@
 {
-  "name": "africa-unita-backend",
+  "name": "africa-unita",
   "version": "1.0.0",
   "description": "Backend API per Africa Unita - Associazione di supporto per migranti africani",
   "main": "server.js",
@@ -7,15 +7,21 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "db:setup": "node scripts/setupDatabase.js",
-    "db:seed": "node scripts/seedDatabase.js"
+    "migrate:users": "node scripts/migrateUserColumns.js",
+    "check:posts": "node scripts/checkPostsTable.js",
+    "test:posts": "node scripts/testPostsQuery.js",
+    "check:all": "node scripts/checkAllTables.js",
+    "test:users": "node scripts/testUsersQuery.js",
+    "test:messages": "node scripts/testMessagesQuery.js",
+    "test:send-message": "node scripts/testSendMessage.js",
+    "test:update-role": "node scripts/testUpdateUserRole.js"
   },
   "keywords": [
     "africa",
     "unita",
     "associazione",
     "express",
-    "postgresql"
+    "mysql"
   ],
   "author": "",
   "license": "ISC",
@@ -29,7 +35,8 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "pg": "^8.12.0"
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.9.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"

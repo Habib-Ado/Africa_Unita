@@ -9,6 +9,11 @@ import AdminStats from "./views/AdminStats.js";
 import Treasurer from "./views/Treasurer.js";
 import Users from "./views/Users.js";
 import UserProfile from "./views/UserProfile.js";
+import Moderator from "./views/Moderator.js";
+import PostDetail from "./views/PostDetail.js";
+import MyPosts from "./views/MyPosts.js";
+import Meetings from "./views/Meetings.js";
+import MyLoans from "./views/MyLoans.js";
 
 const pathToRegex = path => new RegExp("^" + path.replace(/\//g, "\\/").replace(/:\w+/g, "(.+)") + "$")
 const getParams = match => {
@@ -24,12 +29,31 @@ export const navigateTo = path => {
     router().then(_ => console.log)
 }
 
-// Backend API base URL (sviluppo): punta al server Express su 3000
-export const API_BASE = "http://localhost:3000";
+// Backend API base URL - Railway production only
+// Railway serve sia frontend che backend sullo stesso dominio
+export const API_BASE = window.location.origin;
 
-// Helper per chiamate API sempre verso il backend (evita 404 dal server statico 8080)
+// Helper per chiamate API sempre verso il backend
 export async function apiFetch(path, options = {}) {
     const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
+    
+    // Aggiungi automaticamente il token JWT se presente
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+        options.headers = {
+            ...options.headers,
+            'Authorization': `Bearer ${token}`
+        };
+    }
+    
+    // Aggiungi Content-Type per JSON se non è FormData
+    if (options.body && !(options.body instanceof FormData)) {
+        options.headers = {
+            ...options.headers,
+            'Content-Type': 'application/json'
+        };
+    }
+    
     return fetch(url, options);
 }
 
@@ -62,6 +86,16 @@ const router = async () => {
             requiresAuth: true
         },
         {
+            path: "/my-posts",
+            view: MyPosts,
+            requiresAuth: true
+        },
+        {
+            path: "/my-loans",
+            view: MyLoans,
+            requiresAuth: true
+        },
+        {
             path: "/admin/users",
             view: AdminUsers,
             requiresAuth: true,
@@ -88,6 +122,26 @@ const router = async () => {
             path: "/profile/:id",
             view: UserProfile,
             requiresAuth: true
+        },
+        {
+            path: "/moderator",
+            view: Moderator,
+            requiresAuth: true,
+            requiresModerator: true
+        },
+        {
+            path: "/meetings",
+            view: Meetings,
+            requiresAuth: true,
+            requiresModerator: true
+        },
+        {
+            path: "/post/:id",
+            view: PostDetail
+        },
+        {
+            path: "/content/:id",
+            view: PostDetail
         }
     ]
 
@@ -138,11 +192,27 @@ const router = async () => {
             return
         }
 
+        // Check moderator access for moderator routes
+        if (match.route.requiresModerator && !['moderator', 'admin'].includes(session.user.role)) {
+            console.log("Moderator access denied - redirecting to home")
+            navigateTo("/")
+            return
+        }
+
         // Se l'utente è autenticato e ha i permessi necessari, procedi
         console.log("Access granted - proceeding to route")
     }
 
-    const view = new match.route.view(getParams(match))
+    const params = getParams(match);
+    
+    // Aggiungi il tipo per le route di dettaglio
+    if (match.route.path === "/post/:id") {
+        params.type = 'post';
+    } else if (match.route.path === "/content/:id") {
+        params.type = 'content';
+    }
+    
+    const view = new match.route.view(params)
     
     // Clear the app container before loading new view
     const appContainer = document.querySelector("#app")
@@ -151,6 +221,11 @@ const router = async () => {
     // Initialize the view
     if (typeof view.init === "function") {
         await view.init()
+    }
+    
+    // Call afterRender if it exists
+    if (typeof view.afterRender === "function") {
+        await view.afterRender()
     }
 }
 
@@ -201,6 +276,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const registerButton = document.getElementById("btnRegister")
     const messagesButton = document.getElementById("btnMessages")
     const usersButton = document.getElementById("btnUsers")
+    const myPostsButton = document.getElementById("btnMyPosts")
+    const moderatorButton = document.getElementById("btnModerator")
+    const meetingsButton = document.getElementById("btnMeetings")
     const adminLink = document.getElementById("admin-link")
     const treasurerLink = document.getElementById("treasurer-link")
 
@@ -214,6 +292,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (logoutButton) logoutButton.style.display = "none"
                 if (messagesButton) messagesButton.style.display = "none"
                 if (usersButton) usersButton.style.display = "none"
+                if (myPostsButton) myPostsButton.style.display = "none"
+                if (moderatorButton) moderatorButton.style.display = "none"
+                if (meetingsButton) meetingsButton.style.display = "none"
                 if (loginButton) loginButton.style.display = "block"
                 if (registerButton) registerButton.style.display = "block"
         } else {
@@ -234,8 +315,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (registerButton) registerButton.style.display = "none"
                 if (logoutButton) logoutButton.style.display = "block"
                 if (profileButton) profileButton.style.display = "block"
+                if (myPostsButton) myPostsButton.style.display = "block"
                 if (messagesButton) messagesButton.style.display = "block"
                 if (usersButton) usersButton.style.display = "block"
+                // Mostra link moderatore e riunioni in base al ruolo
+                if (moderatorButton && ['moderator', 'admin'].includes(data.user?.role)) moderatorButton.style.display = "block"
+                if (meetingsButton && ['moderator', 'admin'].includes(data.user?.role)) meetingsButton.style.display = "block"
                 // Mostra link admin/tesoriere in base al ruolo
                 if (adminLink && data.user?.role === 'admin') adminLink.style.display = "block"
                 if (treasurerLink && (data.user?.role === 'treasurer' || data.user?.role === 'admin')) treasurerLink.style.display = "block"
@@ -247,6 +332,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (logoutButton) logoutButton.style.display = "none"
                 if (messagesButton) messagesButton.style.display = "none"
                 if (usersButton) usersButton.style.display = "none"
+                if (myPostsButton) myPostsButton.style.display = "none"
+                if (moderatorButton) moderatorButton.style.display = "none"
+                if (meetingsButton) meetingsButton.style.display = "none"
                 if (loginButton) loginButton.style.display = "block"
                 if (registerButton) registerButton.style.display = "block"
             }
@@ -258,6 +346,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (profileButton) profileButton.style.display = "none"
         if (logoutButton) logoutButton.style.display = "none"
         if (messagesButton) messagesButton.style.display = "none"
+        if (myPostsButton) myPostsButton.style.display = "none"
         if (loginButton) loginButton.style.display = "block"
         if (registerButton) registerButton.style.display = "block"
     }

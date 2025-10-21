@@ -1,112 +1,159 @@
 import express from 'express';
 import { query } from '../database/db.js';
-import { authenticateToken, optionalAuth, requireRole } from '../middleware/auth.js';
-import { validatePost } from '../middleware/validation.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 
 const router = express.Router();
 
-// GET /api/posts - Ottieni lista posts (pubblico)
-router.get('/', optionalAuth, async (req, res) => {
+// Configurazione multer per upload immagini posts
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../uploads/posts');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'post-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({ 
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024 // 10MB limit per immagini
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Solo immagini sono permesse per il campo image'), false);
+        }
+    }
+});
+
+// Configurazione multer per file allegati (documenti, etc.)
+const uploadFiles = multer({
+    storage: storage,
+    limits: {
+        fileSize: 50 * 1024 * 1024 // 50MB limit per documenti
+    },
+    fileFilter: (req, file, cb) => {
+        // Permetti vari tipi di file
+        const allowedTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'application/pdf', 
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/plain',
+            'application/zip'
+        ];
+        
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Tipo di file non supportato'), false);
+        }
+    }
+});
+
+// GET /api/posts - Ottieni post pubblici
+router.get('/', async (req, res) => {
     try {
-        const { 
-            page = 1, 
-            limit = 20, 
-            category = '', 
-            search = '',
-            featured = false,
-            user_id = ''
-        } = req.query;
-        const offset = (page - 1) * limit;
+        const { limit = 10, offset = 0, search } = req.query;
 
-        let queryText = `
-            SELECT p.*, 
-                   u.username as author_username, 
-                   u.first_name as author_first_name,
-                   u.last_name as author_last_name,
-                   u.avatar_url as author_avatar,
-                   (SELECT COUNT(*) FROM favorites WHERE post_id = p.id) as favorites_count,
-                   (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comments_count
-            FROM posts p
-            JOIN users u ON p.user_id = u.id
-            WHERE p.is_published = true
-        `;
-        const params = [];
-        let paramCount = 1;
+        let whereClause = 'WHERE p.is_published = ?';
+        let params = [1]; // 1 pour true en MySQL
 
-        if (category) {
-            queryText += ` AND p.category = $${paramCount}`;
-            params.push(category);
-            paramCount++;
-        }
-
+        // Aggiungi ricerca per titolo e contenuto
         if (search) {
-            queryText += ` AND (p.title ILIKE $${paramCount} OR p.description ILIKE $${paramCount})`;
-            params.push(`%${search}%`);
-            paramCount++;
+            whereClause += ` AND (p.title LIKE ? OR p.description LIKE ?)`;
+            params.push(`%${search}%`, `%${search}%`);
         }
 
-        if (featured === 'true') {
-            queryText += ` AND p.is_featured = true`;
-        }
+        // Converti limit e offset in numeri interi
+        const limitNum = parseInt(limit) || 10;
+        const offsetNum = parseInt(offset) || 0;
 
-        if (user_id) {
-            queryText += ` AND p.user_id = $${paramCount}`;
-            params.push(user_id);
-            paramCount++;
-        }
+        const result = await query(
+            `SELECT 
+                p.id, p.title, p.description as content, p.created_at, p.updated_at,
+                u.first_name as author_name,
+                u.last_name as author_surname
+             FROM posts p
+             LEFT JOIN users u ON p.user_id = u.id
+             ${whereClause}
+             ORDER BY p.created_at DESC
+             LIMIT ${limitNum} OFFSET ${offsetNum}`,
+            params
+        );
 
-        queryText += ` ORDER BY p.created_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
-        params.push(limit, offset);
-
-        const result = await query(queryText, params);
-
-        // Conta totale
-        let countQuery = 'SELECT COUNT(*) FROM posts WHERE is_published = true';
-        const countParams = [];
-        if (category) {
-            countQuery += ' AND category = $1';
-            countParams.push(category);
-        }
-        const countResult = await query(countQuery, countParams);
-
-        res.json({
+        res.status(200).json({
             success: true,
-            data: {
-                posts: result.rows,
-                pagination: {
-                    total: parseInt(countResult.rows[0].count),
-                    page: parseInt(page),
-                    limit: parseInt(limit),
-                    pages: Math.ceil(countResult.rows[0].count / limit)
-                }
-            }
+            data: { posts: result.rows }
         });
+
     } catch (error) {
         console.error('Get posts error:', error);
         res.status(500).json({
             success: false,
-            message: 'Errore nel recupero dei posts'
+            message: 'Errore nel recupero dei post'
+        });
+    }
+});
+
+// GET /api/posts/my - Ottieni i propri posts (DEVE stare PRIMA di /:id)
+router.get('/my', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const result = await query(`
+            SELECT 
+                p.id, p.title, p.description as content, p.category, p.image, 
+                p.is_published, p.views, p.created_at, p.updated_at
+            FROM posts p
+            WHERE p.user_id = ?
+            ORDER BY p.created_at DESC
+        `, [userId]);
+
+        res.status(200).json({
+            success: true,
+            data: { posts: result.rows }
+        });
+    } catch (error) {
+        console.error('Get my posts error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore nel recupero dei tuoi annunci'
         });
     }
 });
 
 // GET /api/posts/:id - Ottieni post specifico
-router.get('/:id', optionalAuth, async (req, res) => {
+router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
 
         const result = await query(
-            `SELECT p.*, 
-                    u.username as author_username, 
-                    u.first_name as author_first_name,
-                    u.last_name as author_last_name,
-                    u.avatar_url as author_avatar,
-                    u.phone as author_phone,
-                    (SELECT COUNT(*) FROM favorites WHERE post_id = p.id) as favorites_count
+            `SELECT 
+                p.id, p.title, p.description as content, p.category, p.image,
+                p.views, p.created_at, p.updated_at,
+                u.id as user_id, u.first_name as author_name,
+                u.last_name as author_surname, u.avatar as author_avatar
              FROM posts p
-             JOIN users u ON p.user_id = u.id
-             WHERE p.id = $1 AND p.is_published = true`,
-            [id]
+             LEFT JOIN users u ON p.user_id = u.id
+             WHERE p.id = ? AND p.is_published = ?`,
+            [id, 1]
         );
 
         if (result.rows.length === 0) {
@@ -116,28 +163,22 @@ router.get('/:id', optionalAuth, async (req, res) => {
             });
         }
 
-        // Incrementa view count
-        await query('SELECT increment_post_views($1)', [id]);
+        // Ottieni i file allegati al post
+        const filesResult = await query(`
+            SELECT id, file_name, file_path, file_size, mime_type, uploaded_at
+            FROM post_files
+            WHERE post_id = ?
+            ORDER BY uploaded_at ASC
+        `, [id]);
 
-        // Verifica se è nei favoriti dell'utente (se autenticato)
-        let isFavorite = false;
-        if (req.user) {
-            const favCheck = await query(
-                'SELECT id FROM favorites WHERE user_id = $1 AND post_id = $2',
-                [req.user.id, id]
-            );
-            isFavorite = favCheck.rows.length > 0;
-        }
-
-        res.json({
+        res.status(200).json({
             success: true,
-            data: {
-                post: {
-                    ...result.rows[0],
-                    is_favorite: isFavorite
-                }
+            data: { 
+                post: result.rows[0],
+                files: filesResult.rows
             }
         });
+
     } catch (error) {
         console.error('Get post error:', error);
         res.status(500).json({
@@ -147,243 +188,212 @@ router.get('/:id', optionalAuth, async (req, res) => {
     }
 });
 
-// POST /api/posts - Crea nuovo post (autenticato)
-router.post('/', authenticateToken, validatePost, async (req, res) => {
+// POST /api/posts - Crea nuovo post con file allegati
+router.post('/', authenticateToken, uploadFiles.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'files', maxCount: 10 }
+]), async (req, res) => {
     try {
-        const { title, description, category, location, contact_info, image_url } = req.body;
+        const { title, content, category } = req.body;
+        const userId = req.user.id;
 
-        const result = await query(
-            `INSERT INTO posts (user_id, title, description, category, location, contact_info, image_url)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING *`,
-            [req.user.id, title, description, category, location, contact_info, image_url]
-        );
+        if (!title || !content || !category) {
+            return res.status(400).json({
+                success: false,
+                message: 'Titolo, contenuto e categoria sono obbligatori'
+            });
+        }
+
+        // Gestisci immagine se caricata
+        let imageUrl = null;
+        if (req.files && req.files['image'] && req.files['image'][0]) {
+            imageUrl = `/uploads/posts/${req.files['image'][0].filename}`;
+        }
+
+        const result = await query(`
+            INSERT INTO posts (user_id, title, description, category, image, is_published)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `, [userId, title, content, category, imageUrl, 1]);
+
+        const postId = result.rows.insertId;
+
+        // Gestisci i file allegati
+        if (req.files && req.files['files'] && req.files['files'].length > 0) {
+            for (const file of req.files['files']) {
+                await query(`
+                    INSERT INTO post_files (post_id, file_name, file_path, file_size, mime_type)
+                    VALUES (?, ?, ?, ?, ?)
+                `, [postId, file.originalname, `/uploads/posts/${file.filename}`, file.size, file.mimetype]);
+            }
+        }
 
         res.status(201).json({
             success: true,
-            message: 'Post creato con successo',
-            data: {
-                post: result.rows[0]
-            }
+            message: 'Annuncio creato con successo',
+            data: { post: result.rows[0] }
         });
     } catch (error) {
         console.error('Create post error:', error);
         res.status(500).json({
             success: false,
-            message: 'Errore nella creazione del post'
+            message: 'Errore nella creazione dell\'annuncio'
         });
     }
 });
 
-// PUT /api/posts/:id - Aggiorna post (proprietario o admin)
-router.put('/:id', authenticateToken, validatePost, async (req, res) => {
+// PUT /api/posts/:id - Modifica post
+router.put('/:id', authenticateToken, upload.single('image'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, description, category, location, contact_info, image_url, is_published } = req.body;
+        const { title, content, category } = req.body;
+        const userId = req.user.id;
 
-        // Verifica proprietà
-        const postCheck = await query(
-            'SELECT user_id FROM posts WHERE id = $1',
+        // Verifica che il post esista e appartenga all'utente
+        const existingPost = await query(
+            'SELECT user_id FROM posts WHERE id = ?',
             [id]
         );
 
-        if (postCheck.rows.length === 0) {
+        if (existingPost.rows.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'Post non trovato'
+                message: 'Annuncio non trovato'
             });
         }
 
-        if (postCheck.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
+        // Solo l'autore o un admin può modificare
+        if (existingPost.rows[0].user_id !== userId && req.user.role !== 'admin') {
             return res.status(403).json({
                 success: false,
-                message: 'Non autorizzato a modificare questo post'
+                message: 'Non hai i permessi per modificare questo annuncio'
             });
         }
 
-        const result = await query(
-            `UPDATE posts 
-             SET title = $1, description = $2, category = $3, 
-                 location = $4, contact_info = $5, image_url = $6,
-                 is_published = COALESCE($7, is_published)
-             WHERE id = $8
-             RETURNING *`,
-            [title, description, category, location, contact_info, image_url, is_published, id]
-        );
+        // Gestisci immagine se caricata
+        let imageUrl = null;
+        if (req.file) {
+            imageUrl = `/uploads/posts/${req.file.filename}`;
+        }
 
-        res.json({
+        const updateFields = [];
+        const values = [];
+
+        if (title) {
+            updateFields.push(`title = ?`);
+            values.push(title);
+        }
+        if (content) {
+            updateFields.push(`description = ?`);
+            values.push(content);
+        }
+        if (category) {
+            updateFields.push(`category = ?`);
+            values.push(category);
+        }
+        if (imageUrl) {
+            updateFields.push(`image = ?`);
+            values.push(imageUrl);
+        }
+
+        if (updateFields.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nessun campo da aggiornare'
+            });
+        }
+
+        values.push(id);
+        const result = await query(`
+            UPDATE posts 
+            SET ${updateFields.join(', ')}
+            WHERE id = ?
+        `, values);
+
+        res.status(200).json({
             success: true,
-            message: 'Post aggiornato con successo',
-            data: {
-                post: result.rows[0]
-            }
+            message: 'Annuncio aggiornato con successo',
+            data: { post: result.rows[0] }
         });
     } catch (error) {
         console.error('Update post error:', error);
         res.status(500).json({
             success: false,
-            message: 'Errore nell\'aggiornamento del post'
+            message: 'Errore nell\'aggiornamento dell\'annuncio'
         });
     }
 });
 
-// DELETE /api/posts/:id - Elimina post (proprietario o admin)
+// DELETE /api/posts/:id - Elimina post
 router.delete('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.user.id;
 
-        const postCheck = await query(
-            'SELECT user_id FROM posts WHERE id = $1',
+        // Verifica che il post esista
+        const existingPost = await query(
+            'SELECT user_id, image FROM posts WHERE id = ?',
             [id]
         );
 
-        if (postCheck.rows.length === 0) {
+        if (existingPost.rows.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'Post non trovato'
+                message: 'Annuncio non trovato'
             });
         }
 
-        if (postCheck.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
+        // Solo l'autore o un admin può eliminare
+        if (existingPost.rows[0].user_id !== userId && req.user.role !== 'admin') {
             return res.status(403).json({
                 success: false,
-                message: 'Non autorizzato a eliminare questo post'
+                message: 'Non hai i permessi per eliminare questo annuncio'
             });
         }
 
-        await query('DELETE FROM posts WHERE id = $1', [id]);
+        // Elimina l'immagine dal filesystem se esiste
+        if (existingPost.rows[0].image) {
+            const imagePath = path.join(__dirname, '..', existingPost.rows[0].image);
+            if (fs.existsSync(imagePath)) {
+                fs.unlinkSync(imagePath);
+            }
+        }
 
-        res.json({
+        await query('DELETE FROM posts WHERE id = ?', [id]);
+
+        res.status(200).json({
             success: true,
-            message: 'Post eliminato con successo'
+            message: 'Annuncio eliminato con successo'
         });
     } catch (error) {
         console.error('Delete post error:', error);
         res.status(500).json({
             success: false,
-            message: 'Errore nell\'eliminazione del post'
+            message: 'Errore nell\'eliminazione dell\'annuncio'
         });
     }
 });
 
-// POST /api/posts/:id/favorite - Aggiungi/rimuovi dai preferiti
-router.post('/:id/favorite', authenticateToken, async (req, res) => {
+// POST /api/posts/:id/view - Incrementa contatore visualizzazioni
+router.post('/:id/view', async (req, res) => {
     try {
         const { id } = req.params;
-
-        // Verifica se il post esiste
-        const postCheck = await query('SELECT id FROM posts WHERE id = $1', [id]);
-        if (postCheck.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Post non trovato'
-            });
-        }
-
-        // Verifica se è già nei favoriti
-        const favCheck = await query(
-            'SELECT id FROM favorites WHERE user_id = $1 AND post_id = $2',
-            [req.user.id, id]
-        );
-
-        if (favCheck.rows.length > 0) {
-            // Rimuovi dai favoriti
-            await query(
-                'DELETE FROM favorites WHERE user_id = $1 AND post_id = $2',
-                [req.user.id, id]
-            );
-            return res.json({
-                success: true,
-                message: 'Rimosso dai preferiti',
-                data: { is_favorite: false }
-            });
-        } else {
-            // Aggiungi ai favoriti
-            await query(
-                'INSERT INTO favorites (user_id, post_id) VALUES ($1, $2)',
-                [req.user.id, id]
-            );
-            return res.json({
-                success: true,
-                message: 'Aggiunto ai preferiti',
-                data: { is_favorite: true }
-            });
-        }
-    } catch (error) {
-        console.error('Toggle favorite error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Errore nella gestione dei preferiti'
-        });
-    }
-});
-
-// GET /api/posts/my/favorites - Ottieni posts preferiti dell'utente
-router.get('/my/favorites', authenticateToken, async (req, res) => {
-    try {
-        const { page = 1, limit = 20 } = req.query;
-        const offset = (page - 1) * limit;
-
-        const result = await query(
-            `SELECT p.*, 
-                    u.username as author_username, 
-                    u.first_name as author_first_name,
-                    u.last_name as author_last_name,
-                    f.created_at as favorited_at
-             FROM favorites f
-             JOIN posts p ON f.post_id = p.id
-             JOIN users u ON p.user_id = u.id
-             WHERE f.user_id = $1 AND p.is_published = true
-             ORDER BY f.created_at DESC
-             LIMIT $2 OFFSET $3`,
-            [req.user.id, limit, offset]
-        );
-
-        res.json({
+        
+        // Incrementa il contatore
+        await query(`
+            UPDATE posts 
+            SET views = views + 1 
+            WHERE id = ? AND is_published = 1
+        `, [id]);
+        
+        res.status(200).json({
             success: true,
-            data: {
-                posts: result.rows
-            }
+            message: 'Visualizzazione registrata'
         });
     } catch (error) {
-        console.error('Get favorites error:', error);
+        console.error('Error tracking view:', error);
         res.status(500).json({
             success: false,
-            message: 'Errore nel recupero dei preferiti'
-        });
-    }
-});
-
-// PUT /api/posts/:id/feature - Metti in evidenza (solo admin)
-router.put('/:id/feature', authenticateToken, requireRole('admin'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { is_featured } = req.body;
-
-        const result = await query(
-            'UPDATE posts SET is_featured = $1 WHERE id = $2 RETURNING *',
-            [is_featured, id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Post non trovato'
-            });
-        }
-
-        res.json({
-            success: true,
-            message: `Post ${is_featured ? 'messo in evidenza' : 'rimosso dall\'evidenza'}`,
-            data: {
-                post: result.rows[0]
-            }
-        });
-    } catch (error) {
-        console.error('Feature post error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Errore nell\'aggiornamento del post'
+            message: 'Errore nella registrazione della visualizzazione'
         });
     }
 });

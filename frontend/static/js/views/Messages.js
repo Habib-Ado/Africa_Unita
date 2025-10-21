@@ -15,7 +15,7 @@ export default class extends AbstractView {
         try {
             // Verifica sessione via JWT
             const token = localStorage.getItem('auth_token');
-            const response = await fetch("http://localhost:3000/api/auth/me", {
+            const response = await fetch("/api/auth/me", {
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -98,14 +98,20 @@ export default class extends AbstractView {
     async loadMessages() {
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch("http://localhost:3000/api/messages", {
+            const response = await fetch("/api/messages", {
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 }
             });
             if (!response.ok) {
-                throw new Error("Failed to load messages");
+                if (response.status === 500) {
+                    console.error("Server error 500 - Messages endpoint not working");
+                    this.messages = [];
+                    this.showErrorMessage("Il sistema di messaggi non è ancora disponibile. Contatta l'amministratore.");
+                    return;
+                }
+                throw new Error(`Failed to load messages: ${response.status}`);
             }
             const responseData = await response.json();
             // Estrai l'array di messaggi dalla risposta
@@ -113,7 +119,7 @@ export default class extends AbstractView {
             
             // Verifica che sia un array prima di ordinare
             if (Array.isArray(messages)) {
-                this.messages = messages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            this.messages = messages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
             } else {
                 console.warn("Messages is not an array:", messages);
                 this.messages = [];
@@ -121,6 +127,8 @@ export default class extends AbstractView {
             this.groupMessagesByUser();
         } catch (error) {
             console.error("Error loading messages:", error);
+            this.messages = [];
+            this.showErrorMessage("Errore nel caricamento dei messaggi. Riprova più tardi.");
             throw error;
         }
     }
@@ -185,6 +193,39 @@ export default class extends AbstractView {
                 await this.sendNewMessage();
             });
         }
+        
+        // Event listener per chiudere il modal di risposta
+        const closeReplyModalBtn = document.getElementById("close-reply-modal");
+        if (closeReplyModalBtn) {
+            closeReplyModalBtn.addEventListener("click", () => {
+                const modal = document.getElementById('replyModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+        
+        // Event listener per chiudere il modal nuovo messaggio
+        const closeNewMessageModalBtn = document.getElementById("close-new-message-modal");
+        if (closeNewMessageModalBtn) {
+            closeNewMessageModalBtn.addEventListener("click", () => {
+                const modal = document.getElementById('newMessageModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+        
+        // Event listener per il pulsante Annulla
+        const cancelNewMessageBtn = document.getElementById("cancel-new-message");
+        if (cancelNewMessageBtn) {
+            cancelNewMessageBtn.addEventListener("click", () => {
+                const modal = document.getElementById('newMessageModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
     }
 
     async handleReply(e) {
@@ -196,7 +237,7 @@ export default class extends AbstractView {
 
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch("http://localhost:3000/api/messages", {
+            const response = await fetch("/api/messages", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -346,7 +387,7 @@ export default class extends AbstractView {
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h5 class="modal-title">Messaggio per <span id="recipient-name"></span></h5>
-                                <button type="button" class="btn-close" onclick="document.getElementById('replyModal').style.display='none'"></button>
+                                <button type="button" class="btn-close" id="close-reply-modal"></button>
                             </div>
                             <div class="modal-body">
                                 <form id="reply-form">
@@ -372,7 +413,7 @@ export default class extends AbstractView {
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h5 class="modal-title"><i class="fas fa-envelope"></i> Nuovo messaggio</h5>
-                                <button type="button" class="btn-close" onclick="document.getElementById('newMessageModal').style.display='none'"></button>
+                                <button type="button" class="btn-close" id="close-new-message-modal"></button>
                             </div>
                             <div class="modal-body">
                                 <form id="new-message-form">
@@ -391,7 +432,7 @@ export default class extends AbstractView {
                                         <textarea class="form-control" id="new-content" name="content" rows="5" required></textarea>
                                     </div>
                                     <div class="d-flex justify-content-end gap-2">
-                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('newMessageModal').style.display='none'">Annulla</button>
+                                        <button type="button" class="btn btn-secondary" id="cancel-new-message">Annulla</button>
                                         <button type="submit" class="btn btn-primary">
                                             <i class="fas fa-paper-plane"></i> Invia messaggio
                                         </button>
@@ -536,7 +577,7 @@ export default class extends AbstractView {
     async loadUsers() {
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch("http://localhost:3000/api/users", {
+            const response = await fetch("/api/users", {
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
@@ -582,7 +623,7 @@ export default class extends AbstractView {
 
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch("http://localhost:3000/api/messages", {
+            const response = await fetch("/api/messages", {
                 method: "POST",
                 headers: {
                     'Content-Type': 'application/json',
@@ -620,6 +661,18 @@ export default class extends AbstractView {
         } catch (error) {
             console.error('Error sending message:', error);
             alert('Errore nell\'invio del messaggio');
+        }
+    }
+
+    showErrorMessage(message) {
+        const messagesList = document.getElementById('messages-list');
+        if (messagesList) {
+            messagesList.innerHTML = `
+                <div class="alert alert-warning text-center">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Attenzione:</strong> ${message}
+                </div>
+            `;
         }
     }
 } 
