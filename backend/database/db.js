@@ -6,9 +6,7 @@ const poolConfig = config.database.url
     ? {
         uri: config.database.url,
         ssl: false, // Railway MySQL non richiede SSL
-        connectionLimit: 20,
-        acquireTimeout: 60000,
-        timeout: 60000
+        connectionLimit: 20
     }
     : {
         host: config.database.host,
@@ -17,9 +15,7 @@ const poolConfig = config.database.url
         user: config.database.user,
         password: config.database.password,
         ssl: false,
-        connectionLimit: 20,
-        acquireTimeout: 60000,
-        timeout: 60000
+        connectionLimit: 20
     };
 
 const pool = mysql.createPool(poolConfig);
