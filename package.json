@@ -11,7 +11,9 @@
     "build": "npm run install:all",
     "postinstall": "npm run install:backend",
     "railway:setup": "cd backend && npm run db:setup && npm run db:seed",
-    "railway:reset": "cd backend && npm run db:reset-passwords"
+    "railway:reset": "cd backend && npm run db:reset-passwords",
+    "railway:check": "cd backend && npm run test-connection",
+    "railway:status": "bash railway-db-check.sh"
   },
   "keywords": [
     "africa",
