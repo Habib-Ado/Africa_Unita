@@ -9,7 +9,9 @@
     "install:backend": "cd backend && npm install",
     "install:all": "npm run install:backend",
     "build": "npm run install:all",
-    "postinstall": "npm run install:backend"
+    "postinstall": "npm run install:backend",
+    "railway:setup": "cd backend && npm run db:setup && npm run db:seed",
+    "railway:reset": "cd backend && npm run db:reset-passwords"
   },
   "keywords": [
     "africa",
