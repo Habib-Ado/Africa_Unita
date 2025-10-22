@@ -34,10 +34,12 @@ async function resetPasswords() {
         // Aggiorna le password degli utenti di test
         const users = [
             { username: 'admin', email: 'admin@africaunita.it' },
-            { username: 'moderator1', email: 'moderator@africaunita.it' },
-            { username: 'treasurer1', email: 'treasurer@africaunita.it' },
+            { username: 'president', email: 'president@africaunita.it' },
+            { username: 'moderator', email: 'moderator@africaunita.it' },
+            { username: 'treasurer', email: 'treasurer@africaunita.it' },
+            { username: 'user1', email: 'user@africaunita.it' },
             { username: 'mario_rossi', email: 'mario@test.com' },
-            { username: 'fatou_diop', email: 'fatou@test.com' }
+            { username: 'ibrahim_sy', email: 'ibrahim@test.com' }
         ];
 
         for (const user of users) {
@@ -69,20 +71,26 @@ async function resetPasswords() {
         console.log('   Email: admin@africaunita.it');
         console.log('   Password: password123');
         console.log('');
+        console.log('👑 PRESIDENT:');
+        console.log('   Username: president');
+        console.log('   Email: president@africaunita.it');
+        console.log('   Password: password123');
+        console.log('');
         console.log('✏️ MODERATORE:');
-        console.log('   Username: moderator1');
+        console.log('   Username: moderator');
         console.log('   Email: moderator@africaunita.it');
         console.log('   Password: password123');
         console.log('');
         console.log('💰 TESORIERE:');
-        console.log('   Username: treasurer1');
+        console.log('   Username: treasurer');
         console.log('   Email: treasurer@africaunita.it');
         console.log('   Password: password123');
         console.log('');
         console.log('👤 UTENTI NORMALI:');
+        console.log('   Username: user1 | Email: user@africaunita.it');
         console.log('   Username: mario_rossi | Email: mario@test.com');
-        console.log('   Username: fatou_diop | Email: fatou@test.com');
-        console.log('   Password: password123 (per entrambi)');
+        console.log('   Username: ibrahim_sy | Email: ibrahim@test.com');
+        console.log('   Password: password123 (per tutti)');
         console.log('');
         console.log('═══════════════════════════════════════════════════');
         
