@@ -1,0 +1,28 @@
+{
+  "name": "africa-unita",
+  "version": "1.0.0",
+  "description": "Africa Unita - Sito Web per l'associazione di supporto per migranti africani",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "dev": "cd backend && npm run dev",
+    "install:backend": "cd backend && npm install",
+    "install:all": "npm run install:backend",
+    "build": "npm run install:all",
+    "postinstall": "npm run install:backend"
+  },
+  "keywords": [
+    "africa",
+    "unita",
+    "associazione",
+    "express",
+    "mysql",
+    "nodejs"
+  ],
+  "author": "Africa Unita",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}
