@@ -38,7 +38,6 @@ async function createTables() {
 
         // Lire le schéma
         const schemaPath = path.join(__dirname, '../database/schema.sql');
-        
         const schema = fs.readFileSync(schemaPath, 'utf8');
 
         console.log('📄 Exécution du schéma SQL...');
