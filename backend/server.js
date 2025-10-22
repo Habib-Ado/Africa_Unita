@@ -38,9 +38,9 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS
+// CORS - Railway deployment ready
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:8080',
+    origin: process.env.CORS_ORIGIN || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:8080'),
     credentials: true
 }));
 
@@ -183,14 +183,22 @@ const startServer = async () => {
         }
 
         // Start server
-        app.listen(PORT, () => {
+        app.listen(PORT, '0.0.0.0', () => {
             console.log('');
             console.log('═══════════════════════════════════════════════');
             console.log(`🚀 Africa Unita Server Running`);
             console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
             console.log(`🌐 Port: ${PORT}`);
-            console.log(`🔗 URL: http://localhost:${PORT}`);
-            console.log(`📊 Health Check: http://localhost:${PORT}/health`);
+            
+            // Show correct URL based on environment
+            if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+                console.log(`🔗 URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+                console.log(`📊 Health Check: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/health`);
+            } else {
+                console.log(`🔗 URL: http://localhost:${PORT}`);
+                console.log(`📊 Health Check: http://localhost:${PORT}/health`);
+            }
+            
             console.log('═══════════════════════════════════════════════');
             console.log('');
         });

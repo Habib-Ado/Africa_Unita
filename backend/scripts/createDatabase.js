@@ -7,14 +7,19 @@ async function createDatabase() {
     try {
         console.log('🔌 Connexion au serveur MySQL...');
         
-        // Connexion sans spécifier la base de données
-        const connectionConfig = {
-            host: config.database.host,
-            port: config.database.port,
-            user: config.database.user,
-            password: config.database.password,
-            ssl: false
-        };
+        // Connexion sans spécifier la base de données - Railway compatible
+        const connectionConfig = config.database.url 
+            ? {
+                uri: config.database.url,
+                ssl: false
+            }
+            : {
+                host: config.database.host,
+                port: config.database.port,
+                user: config.database.user,
+                password: config.database.password,
+                ssl: false
+            };
 
         connection = await mysql.createConnection(connectionConfig);
         console.log('✅ Connecté au serveur MySQL');

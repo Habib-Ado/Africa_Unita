@@ -14,7 +14,11 @@
     "test:users": "node scripts/testUsersQuery.js",
     "test:messages": "node scripts/testMessagesQuery.js",
     "test:send-message": "node scripts/testSendMessage.js",
-    "test:update-role": "node scripts/testUpdateUserRole.js"
+    "test:update-role": "node scripts/testUpdateUserRole.js",
+    "db:setup": "node scripts/createDatabase.js && node scripts/createTables.js",
+    "db:seed": "node scripts/seedDatabaseMySQL.js",
+    "db:reset-passwords": "node scripts/resetPasswords.js",
+    "test-connection": "node -e \"import('./database/db.js').then(db => db.testConnection())\""
   },
   "keywords": [
     "africa",

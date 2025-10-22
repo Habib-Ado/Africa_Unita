@@ -1,12 +1,14 @@
 import mysql from 'mysql2/promise';
 import { config } from '../config.js';
 
-// Configurazione del pool di connessioni MySQL
+// Configurazione del pool di connessioni MySQL - Railway ready
 const poolConfig = config.database.url 
     ? {
         uri: config.database.url,
-        ssl: false, // Disabilita SSL per Railway MySQL
-        connectionLimit: 20
+        ssl: false, // Railway MySQL non richiede SSL
+        connectionLimit: 20,
+        acquireTimeout: 60000,
+        timeout: 60000
     }
     : {
         host: config.database.host,
@@ -15,7 +17,9 @@ const poolConfig = config.database.url
         user: config.database.user,
         password: config.database.password,
         ssl: false,
-        connectionLimit: 20
+        connectionLimit: 20,
+        acquireTimeout: 60000,
+        timeout: 60000
     };
 
 const pool = mysql.createPool(poolConfig);

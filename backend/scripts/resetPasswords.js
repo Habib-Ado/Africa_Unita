@@ -3,13 +3,21 @@ import mysql from 'mysql2/promise';
 import { config } from '../config.js';
 
 async function resetPasswords() {
-    const connection = await mysql.createConnection({
-        host: config.database.host,
-        port: config.database.port,
-        database: config.database.name,
-        user: config.database.user,
-        password: config.database.password,
-    });
+    const connectionConfig = config.database.url 
+        ? {
+            uri: config.database.url,
+            ssl: false
+        }
+        : {
+            host: config.database.host,
+            port: config.database.port,
+            database: config.database.name,
+            user: config.database.user,
+            password: config.database.password,
+            ssl: false
+        };
+
+    const connection = await mysql.createConnection(connectionConfig);
 
     try {
         console.log('🔌 Connessione al database MySQL...');

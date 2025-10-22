@@ -17,14 +17,21 @@ async function createTables() {
     try {
         console.log('🔌 Connexion à MySQL...');
         
-        const connectionConfig = {
-            host: config.database.host,
-            port: config.database.port,
-            database: config.database.name,
-            user: config.database.user,
-            password: config.database.password,
-            multipleStatements: true
-        };
+        const connectionConfig = config.database.url 
+            ? {
+                uri: config.database.url,
+                ssl: false,
+                multipleStatements: true
+            }
+            : {
+                host: config.database.host,
+                port: config.database.port,
+                database: config.database.name,
+                user: config.database.user,
+                password: config.database.password,
+                ssl: false,
+                multipleStatements: true
+            };
 
         connection = await mysql.createConnection(connectionConfig);
         console.log('✅ Connecté');

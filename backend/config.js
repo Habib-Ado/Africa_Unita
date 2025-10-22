@@ -4,9 +4,9 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const config = {
-    // Database
+    // Database - Railway deployment ready
     database: {
-        url: process.env.DATABASE_URL, // Railway fornisce questa variabile
+        url: process.env.DATABASE_URL, // Railway fornisce questa variabile automaticamente
         host: process.env.DB_HOST || 'localhost',
         port: process.env.DB_PORT || 3306,
         name: process.env.DB_NAME || 'railway',
