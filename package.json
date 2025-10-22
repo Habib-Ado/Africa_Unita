@@ -14,7 +14,8 @@
     "railway:reset": "cd backend && npm run db:reset-passwords",
     "railway:check": "cd backend && npm run test-connection",
     "railway:status": "bash railway-db-check.sh",
-    "railway:fix": "node fix-username-mismatch.js"
+    "railway:fix": "node fix-username-mismatch.js",
+    "railway:debug": "node debug-login.js"
   },
   "keywords": [
     "africa",
