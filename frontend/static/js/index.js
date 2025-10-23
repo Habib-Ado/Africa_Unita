@@ -14,6 +14,7 @@ import PostDetail from "./views/PostDetail.js";
 import MyPosts from "./views/MyPosts.js";
 import Meetings from "./views/Meetings.js";
 import MyLoans from "./views/MyLoans.js";
+import EmailVerification from "./views/EmailVerification.js";
 
 const pathToRegex = path => new RegExp("^" + path.replace(/\//g, "\\/").replace(/:\w+/g, "(.+)") + "$")
 const getParams = match => {
@@ -79,6 +80,10 @@ const router = async () => {
         {
             path: "/reset-password",
             view: ResetPassword
+        },
+        {
+            path: "/verify-email",
+            view: EmailVerification
         },
         {
             path: "/messages",

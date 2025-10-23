@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../database/db.js';
 import { validateRegister, validateLogin } from '../middleware/validation.js';
+import emailService from '../services/emailService.js';
+import verificationService from '../services/verificationService.js';
 
 const router = express.Router();
 
@@ -28,7 +30,7 @@ router.post('/register', validateRegister, async (req, res) => {
         const saltRounds = 12;
         const password_hash = await bcrypt.hash(password, saltRounds);
 
-        // Inserisci nuovo utente con status 'pending' per l'approvazione
+        // Inserisci nuovo utente con status 'pending' per la verifica email
         const countryValue = country_of_origin && country_of_origin.trim() !== '' ? country_of_origin : 'Africa';
         const result = await query(
             `INSERT INTO users (username, email, password_hash, first_name, last_name, phone, country_of_origin, status)
@@ -36,12 +38,27 @@ router.post('/register', validateRegister, async (req, res) => {
             [username, email, password_hash, first_name, last_name, phone, countryValue]
         );
 
-        const user = result.rows[0];
+        const userId = result.insertId;
+        const user = { id: userId, username, email, first_name, last_name, status: 'pending' };
+
+        // Genera token di verifica email
+        const verificationToken = await verificationService.generateVerificationToken(userId);
+
+        // Invia email di verifica
+        const emailSent = await emailService.sendVerificationEmail(
+            email, 
+            verificationToken, 
+            `${first_name} ${last_name}`
+        );
+
+        if (!emailSent) {
+            console.warn('⚠️ Email di verifica non inviata, ma utente creato');
+        }
 
         res.status(201).json({
             success: true,
-            message: 'Registrazione completata! Il tuo account è in attesa di approvazione da parte di un amministratore. Riceverai una notifica via email una volta approvato.',
-            data: { user: { ...user, status: 'pending' } }
+            message: 'Registrazione completata! Ti abbiamo inviato un\'email di verifica. Controlla la tua casella di posta e clicca sul link per verificare il tuo account.',
+            data: { user }
         });
 
     } catch (error) {
@@ -180,6 +197,110 @@ router.post('/logout', async (req, res) => {
         success: true,
         message: 'Logout effettuato con successo'
     });
+});
+
+// GET /api/auth/verify-email - Verifica email con token
+router.get('/verify-email', async (req, res) => {
+    try {
+        const { token } = req.query;
+
+        if (!token) {
+            return res.status(400).json({
+                success: false,
+                message: 'Token di verifica richiesto'
+            });
+        }
+
+        const verification = await verificationService.verifyToken(token);
+
+        if (!verification.valid) {
+            return res.status(400).json({
+                success: false,
+                message: verification.message
+            });
+        }
+
+        // Invia notifica agli admin
+        await emailService.sendAdminNotificationEmail(verification.user);
+
+        res.status(200).json({
+            success: true,
+            message: 'Email verificata con successo! Un amministratore esaminerà la tua richiesta e ti invierà una notifica quando il tuo account sarà approvato.',
+            data: { user: verification.user }
+        });
+
+    } catch (error) {
+        console.error('Email verification error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore durante la verifica email'
+        });
+    }
+});
+
+// POST /api/auth/resend-verification - Reinvia email di verifica
+router.post('/resend-verification', async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email richiesta'
+            });
+        }
+
+        // Trova utente
+        const result = await query(
+            'SELECT id, email, first_name, last_name, status FROM users WHERE email = ?',
+            [email]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Utente non trovato'
+            });
+        }
+
+        const user = result.rows[0];
+
+        if (user.status === 'active' || user.status === 'email_verified') {
+            return res.status(400).json({
+                success: false,
+                message: 'Email già verificata'
+            });
+        }
+
+        // Genera nuovo token
+        const verificationToken = await verificationService.generateVerificationToken(user.id);
+
+        // Invia email di verifica
+        const emailSent = await emailService.sendVerificationEmail(
+            email, 
+            verificationToken, 
+            `${user.first_name} ${user.last_name}`
+        );
+
+        if (!emailSent) {
+            return res.status(500).json({
+                success: false,
+                message: 'Errore invio email di verifica'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Email di verifica reinviata con successo'
+        });
+
+    } catch (error) {
+        console.error('Resend verification error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore durante il reinvio della verifica'
+        });
+    }
 });
 
 export default router;

@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS favorites;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS post_files;
 DROP TABLE IF EXISTS posts;
+DROP TABLE IF EXISTS email_verifications;
 DROP TABLE IF EXISTS users;
 
 -- Table users
@@ -30,7 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_name VARCHAR(100),
     phone VARCHAR(20),
     role ENUM('user', 'admin', 'president', 'moderator', 'treasurer') DEFAULT 'user' NOT NULL,
-    status ENUM('active', 'inactive', 'blocked', 'unblocked', 'suspended', 'pending', 'deleted') DEFAULT 'active' NOT NULL,
+    status ENUM('active', 'inactive', 'blocked', 'unblocked', 'suspended', 'pending', 'email_verified', 'deleted') DEFAULT 'pending' NOT NULL,
     avatar_url VARCHAR(500),
     bio TEXT,
     country_of_origin VARCHAR(100),
@@ -46,6 +47,16 @@ CREATE TABLE IF NOT EXISTS users (
     last_login TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Table email_verifications
+CREATE TABLE IF NOT EXISTS email_verifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Table posts

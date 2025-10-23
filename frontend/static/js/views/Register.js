@@ -48,10 +48,21 @@ export default class extends AbstractView {
                     `;
 
                     if (response.ok) {
-                        // Reindirizza dopo 3 secondi in caso di successo
+                        // Mostra messaggio di verifica email
+                        const formFeedback = document.getElementById("formFeedback");
+                        formFeedback.innerHTML = `
+                            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                                <h5><i class="fas fa-envelope"></i> Verifica la tua email!</h5>
+                                <p>Ti abbiamo inviato un'email di verifica. Controlla la tua casella di posta e clicca sul link per verificare il tuo account.</p>
+                                <p><small>Se non ricevi l'email, controlla anche la cartella spam.</small></p>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        `;
+                        
+                        // Reindirizza dopo 5 secondi in caso di successo
                         setTimeout(() => {
                             navigateTo("/login");
-                        }, 3000);
+                        }, 5000);
                     }
                 } catch (error) {
                     const formFeedback = document.getElementById("formFeedback");
