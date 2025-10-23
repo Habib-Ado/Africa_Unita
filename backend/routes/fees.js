@@ -15,22 +15,19 @@ router.get('/', authenticateToken, requireRole('treasurer', 'admin'), async (req
 
         // Filtro per stato
         if (status) {
-            paramCount++;
-            whereClause += ` AND mf.status = $${paramCount}`;
+            whereClause += ` AND mf.status = ?`;
             queryParams.push(status);
         }
 
         // Filtro per anno
         if (year) {
-            paramCount++;
-            whereClause += ` AND EXTRACT(YEAR FROM mf.due_date) = $${paramCount}`;
+            whereClause += ` AND YEAR(mf.due_date) = ?`;
             queryParams.push(year);
         }
 
         // Filtro per mese
         if (month) {
-            paramCount++;
-            whereClause += ` AND EXTRACT(MONTH FROM mf.due_date) = $${paramCount}`;
+            whereClause += ` AND MONTH(mf.due_date) = ?`;
             queryParams.push(month);
         }
 
@@ -42,7 +39,7 @@ router.get('/', authenticateToken, requireRole('treasurer', 'admin'), async (req
              LEFT JOIN users u ON mf.user_id = u.id
              ${whereClause}
              ORDER BY mf.due_date DESC
-             LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`,
+             LIMIT ? OFFSET ?`,
             [...queryParams, parseInt(limit), parseInt(offset)]
         );
 
@@ -95,7 +92,7 @@ router.get('/my-status', authenticateToken, async (req, res) => {
 router.post('/generate-monthly', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {
         const result = await query(
-            'SELECT * FROM generate_monthly_fees(?::DATE)',
+            'SELECT * FROM generate_monthly_fees(?)',
             [new Date().toISOString().split('T')[0]]
         );
 
@@ -192,8 +189,7 @@ router.get('/fund/transactions', authenticateToken, requireRole('treasurer', 'ad
 
         // Filtro per tipo di transazione
         if (type) {
-            paramCount++;
-            whereClause = `WHERE transaction_type = $${paramCount}`;
+            whereClause = `WHERE transaction_type = ?`;
             queryParams.push(type);
         }
 
@@ -207,7 +203,7 @@ router.get('/fund/transactions', authenticateToken, requireRole('treasurer', 'ad
              LEFT JOIN users u ON ft.treasurer_id = u.id
              ${whereClause}
              ORDER BY ft.transaction_date DESC
-             LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`,
+             LIMIT ? OFFSET ?`,
             [...queryParams, parseInt(limit), parseInt(offset)]
         );
 

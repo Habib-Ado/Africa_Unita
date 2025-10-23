@@ -15,15 +15,13 @@ router.get('/', authenticateToken, requireRole('treasurer', 'admin'), async (req
 
         // Filtro per stato
         if (status) {
-            paramCount++;
-            whereClause += ` AND status = $${paramCount}`;
+            whereClause += ` AND status = ?`;
             queryParams.push(status);
         }
 
         // Filtro per utente
         if (user_id) {
-            paramCount++;
-            whereClause += ` AND user_id = $${paramCount}`;
+            whereClause += ` AND user_id = ?`;
             queryParams.push(user_id);
         }
 
@@ -31,7 +29,7 @@ router.get('/', authenticateToken, requireRole('treasurer', 'admin'), async (req
             `SELECT * FROM loans_with_user
              ${whereClause}
              ORDER BY created_at DESC
-             LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`,
+             LIMIT ? OFFSET ?`,
             [...queryParams, parseInt(limit), parseInt(offset)]
         );
 
