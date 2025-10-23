@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { testConnection } from './database/db.js';
+import runRailwayMigration from './scripts/railway-migration.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -182,6 +183,18 @@ const startServer = async () => {
         if (!dbConnected) {
             console.error('❌ Database connection failed. Please check your configuration.');
             process.exit(1);
+        }
+        
+        // Run Railway migration if on Railway
+        if (process.env.RAILWAY_ENVIRONMENT) {
+            console.log('🚀 Running Railway migration...');
+            try {
+                await runRailwayMigration();
+                console.log('✅ Railway migration completed');
+            } catch (error) {
+                console.log('⚠️  Railway migration warning:', error.message);
+                // Continue anyway, functions might already exist
+            }
         }
 
         // Start server
