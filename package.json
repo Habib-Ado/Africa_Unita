@@ -18,7 +18,8 @@
     "railway:debug": "node debug-login.js",
     "railway:password": "node simple-password-fix.js",
     "railway:admin": "node check-admin-exists.js",
-    "railway:status-debug": "node debug-admin-status.js"
+    "railway:status-debug": "node debug-admin-status.js",
+    "railway:env": "node check-env-variables.js"
   },
   "keywords": [
     "africa",
