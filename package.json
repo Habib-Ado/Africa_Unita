@@ -21,7 +21,9 @@
     "railway:status-debug": "node debug-admin-status.js",
     "railway:env": "node check-env-variables.js",
     "railway:test": "node test-railway-db.js",
-    "railway:setup-env": "node setup-railway-env.js"
+    "railway:setup-env": "node setup-railway-env.js",
+    "railway:config": "node fix-database-config.js",
+    "railway:connection": "node test-railway-connection.js"
   },
   "keywords": [
     "africa",
