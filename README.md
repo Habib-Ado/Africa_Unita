@@ -1,22 +1,37 @@
-# Africa Unita - Sito Web
+# 🌍 Africa Unita - Sito Web
 
-Sito web per l'associazione Africa Unita, dedicata al supporto per migranti africani.
+Sito web per l'associazione Africa Unita, dedicata al supporto per migranti africani in Italia.
 
 ## 🚀 Deployment su Railway
 
 ### Quick Start (5 minuti)
-📖 **[Guida Rapida - QUICK_START_RAILWAY.md](./QUICK_START_RAILWAY.md)**
 
-### Guida Completa
-📚 **[Guida Completa Deployment - RAILWAY_DEPLOYMENT_GUIDE.md](./RAILWAY_DEPLOYMENT_GUIDE.md)**
+1. **Fork del repository** su GitHub
+2. **Connetti a Railway**:
+   - Vai su [railway.app](https://railway.app)
+   - Clicca "New Project" → "Deploy from GitHub repo"
+   - Seleziona il repository `Africa_Unita`
 
----
+3. **Configura Environment Variables** nel Railway dashboard:
+   ```env
+   DATABASE_URL=mysql://root:SLBQYMBhSReyvReKHdgozPCzQrEAKqyx@hopper.proxy.rlwy.net:38226/railway
+   JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
+   NODE_ENV=production
+   ```
+
+4. **Setup Database** (dopo il primo deploy):
+   - Nel Railway console: `cd backend && npm run db:setup && npm run db:seed`
+
+5. **Test Login**:
+   - **URL**: `https://your-app-name.railway.app`
+   - **Email**: admin@africaunita.it
+   - **Password**: password123
 
 ## 💻 Sviluppo Locale
 
 ### Prerequisiti
 - Node.js (versione 18+)
-- MySQL 8.0+
+- MySQL 8.0+ (per sviluppo locale)
 - npm
 
 ### Installazione
@@ -30,32 +45,34 @@ cd Africa_Unita
 cd backend
 npm install
 
-# 3. Genera chiavi segrete
-npm run generate-secrets
+# 3. Configura variabili d'ambiente
+# Crea file .env nella cartella backend con:
+PORT=3000
+NODE_ENV=development
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=africa_unita_db
+DB_USER=root
+DB_PASSWORD=your_password_here
+JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
+CORS_ORIGIN=http://localhost:3000
 
-# 4. Configura variabili d'ambiente
-cp env.example .env
-# Modifica .env con le tue configurazioni
-
-# 5. Testa connessione database
-npm run test-connection
-
-# 6. Inizializza database
+# 4. Setup database locale
 npm run db:setup
 npm run db:seed
 
-# 7. Avvia server in modalità sviluppo
+# 5. Avvia server
 npm run dev
 ```
 
 ### Accesso Locale
-- **URL:** http://localhost:3000
-- **Health Check:** http://localhost:3000/health
+- **URL**: http://localhost:3000
+- **Health Check**: http://localhost:3000/health
 
-### Credenziali di Test (dopo seed)
-- **Admin:** admin@africaunita.it / password123
-- **Moderatore:** moderator@africaunita.it / password123
-- **Tesoriere:** treasurer@africaunita.it / password123
+### Credenziali di Test
+- **Admin**: admin@africaunita.it / password123
+- **Moderatore**: moderator@africaunita.it / password123
+- **Tesoriere**: treasurer@africaunita.it / password123
 
 ## 📋 Funzionalità
 
@@ -64,6 +81,8 @@ npm run dev
 - **Sistema quote associative** per tesorieri
 - **Messaggi privati** tra utenti
 - **Profilo utente** personalizzato
+- **Gestione prestiti** e rate
+- **Incontri associativi** e partecipazione
 
 ## 🛠️ Struttura Progetto
 
@@ -71,11 +90,15 @@ npm run dev
 ├── backend/           # Server Node.js + Express
 │   ├── database/      # Schema database MySQL
 │   ├── routes/        # API endpoints
+│   ├── middleware/    # Autenticazione e validazione
 │   └── scripts/       # Script di setup
 ├── frontend/          # Frontend SPA
 │   ├── static/        # CSS, JS, immagini
 │   └── index.html     # Pagina principale
-└── README.md          # Questo file
+├── start.sh           # Script di avvio Railway
+├── railway.json       # Configurazione Railway
+├── Procfile           # Processo web Railway
+└── package.json       # Configurazione root
 ```
 
 ## 🔧 Comandi Disponibili
@@ -85,55 +108,55 @@ npm run dev
 npm start              # Avvia server in produzione
 npm run dev            # Avvia server con auto-reload
 
-# Database
+# Database (solo sviluppo locale)
 npm run db:setup       # Crea tabelle e schema
 npm run db:seed        # Popola con dati di test
 npm run test-connection # Testa connessione database
-
-# Utilità
-npm run generate-fees     # Genera quote mensili
-npm run generate-secrets  # Genera JWT_SECRET e altre chiavi
-
-# Deployment
-# Vedi QUICK_START_RAILWAY.md per Railway deployment
 ```
-
-## 📝 Note Importanti
-
-### Sviluppo
-- Il database MySQL deve essere in esecuzione
-- Le configurazioni sono in `backend/config.js`
-- Il frontend è una SPA (Single Page Application)
-- File `.env` per variabili d'ambiente (vedi `env.example`)
-
-### Produzione (Railway)
-- Usa sempre `JWT_SECRET` forte e casuale
-- Configura `CORS_ORIGIN` con l'URL corretto
-- Railway fornisce automaticamente `DATABASE_URL`
-- File upload: considera storage esterno (S3, Cloudinary)
-- SSL/TLS: fornito automaticamente da Railway
 
 ## 🔒 Sicurezza
 
-- ✅ Password hashate con bcrypt
+- ✅ Password hashate con bcryptjs
 - ✅ JWT per autenticazione
 - ✅ Helmet.js per security headers
 - ✅ CORS configurabile
 - ✅ Validazione input con express-validator
 - ✅ Protezione SQL injection con parametrized queries
 
-## 📚 Documentazione
+## 🚀 Railway Deployment
 
-- [Quick Start Railway](./QUICK_START_RAILWAY.md) - Deploy in 5 minuti
-- [Guida Completa Railway](./RAILWAY_DEPLOYMENT_GUIDE.md) - Documentazione dettagliata
-- [Schema Database MySQL](./backend/database/schema.sql) - Struttura completa database
-- [API Routes](./backend/routes/) - Documentazione API endpoints
+### Configurazione Automatica
+Railway rileva automaticamente:
+- ✅ `start.sh` - Script di avvio
+- ✅ `railway.json` - Configurazione deployment
+- ✅ `Procfile` - Processo web
+- ✅ `package.json` - Dipendenze Node.js
+
+### Environment Variables Railway
+```env
+# Obbligatorie
+DATABASE_URL=mysql://user:pass@host:port/database
+JWT_SECRET=your_super_secret_jwt_key
+NODE_ENV=production
+
+# Opzionali
+CORS_ORIGIN=https://your-app.railway.app
+```
+
+### Database Setup su Railway
+Dopo il deploy, nel Railway console:
+```bash
+cd backend
+npm run db:setup    # Crea database e tabelle
+npm run db:seed     # Popola con dati di test
+```
 
 ## 🐛 Troubleshooting
 
 ### Database non si connette
 ```bash
-npm run test-connection  # Testa la connessione e mostra diagnostica
+# Testa connessione
+npm run test-connection
 ```
 
 ### Reset completo database
@@ -143,7 +166,30 @@ npm run db:seed   # Ripopola con dati di test
 ```
 
 ### Problemi con Railway
-Consulta la sezione Troubleshooting in [RAILWAY_DEPLOYMENT_GUIDE.md](./RAILWAY_DEPLOYMENT_GUIDE.md)
+1. Verifica che `DATABASE_URL` sia configurato nel dashboard
+2. Controlla i logs Railway per errori
+3. Riavvia il servizio se necessario
+
+## 📚 API Endpoints
+
+### Autenticazione
+- `POST /api/auth/login` - Login utente
+- `POST /api/auth/register` - Registrazione utente
+- `GET /api/auth/me` - Informazioni utente corrente
+
+### Utenti
+- `GET /api/users` - Lista utenti
+- `GET /api/users/:id` - Dettagli utente
+- `PUT /api/users/:id` - Aggiorna utente
+
+### Contenuti
+- `GET /api/posts` - Lista post
+- `POST /api/posts` - Crea post
+- `GET /api/posts/:id` - Dettagli post
+
+### Messaggi
+- `GET /api/messages` - Lista messaggi
+- `POST /api/messages` - Invia messaggio
 
 ## 🤝 Contribuire
 
@@ -161,5 +207,9 @@ Questo progetto è sviluppato per l'associazione Africa Unita.
 
 Per problemi o domande:
 - Apri un issue su GitHub
-- Consulta la documentazione in `/docs`
-- Controlla [Railway Docs](https://docs.railway.app) per problemi di deployment
+- Consulta la documentazione Railway: [docs.railway.app](https://docs.railway.app)
+- Controlla i logs Railway per errori specifici
+
+---
+
+**Africa Unita** - Uniti per un futuro migliore 🌍
