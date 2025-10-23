@@ -16,7 +16,8 @@
     "railway:status": "bash railway-db-check.sh",
     "railway:fix": "node fix-username-mismatch.js",
     "railway:debug": "node debug-login.js",
-    "railway:password": "node simple-password-fix.js"
+    "railway:password": "node simple-password-fix.js",
+    "railway:admin": "node check-admin-exists.js"
   },
   "keywords": [
     "africa",
