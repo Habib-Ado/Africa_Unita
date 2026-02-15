@@ -87,7 +87,7 @@ router.get('/', async (req, res) => {
 
         const result = await query(
             `SELECT 
-                p.id, p.title, p.description, p.category, p.image, p.created_at, p.updated_at,
+                p.id, p.title, p.description, p.category, p.image_url, p.file_url, p.created_at, p.updated_at,
                 u.first_name as author_name,
                 u.last_name as author_surname
              FROM posts p
@@ -119,7 +119,7 @@ router.get('/my', authenticateToken, async (req, res) => {
 
         const result = await query(`
             SELECT 
-                p.id, p.title, p.description as content, p.category, p.image, 
+                p.id, p.title, p.description as content, p.category, p.image_url, p.file_url,
                 p.is_published, p.views, p.created_at, p.updated_at
             FROM posts p
             WHERE p.user_id = ?
@@ -146,7 +146,7 @@ router.get('/:id', async (req, res) => {
 
         const result = await query(
             `SELECT 
-                p.id, p.title, p.description as content, p.category, p.image,
+                p.id, p.title, p.description as content, p.category, p.image_url, p.file_url,
                 p.views, p.created_at, p.updated_at,
                 u.id as user_id, u.username as author_username, u.first_name as author_name,
                 u.last_name as author_surname, u.avatar_url as author_avatar
@@ -211,12 +211,21 @@ router.post('/', authenticateToken, uploadFiles.fields([
             imageUrl = `/uploads/posts/${req.files['image'][0].filename}`;
         }
 
-        const result = await query(`
-            INSERT INTO posts (user_id, title, description, category, image, is_published)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `, [userId, title, postContent, category, imageUrl, 1]);
+        // Gestisci file se caricato
+        let fileUrl = null;
+        if (req.files && req.files['files'] && req.files['files'][0]) {
+            fileUrl = `/uploads/posts/${req.files['files'][0].filename}`;
+        }
 
-        const postId = result.rows.insertId;
+        const location = req.body.location || null;
+        const contactInfo = req.body.contact_info || null;
+
+        const result = await query(`
+            INSERT INTO posts (user_id, title, description, category, location, contact_info, image_url, file_url, is_published)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        `, [userId, title, postContent, category, location, contactInfo, imageUrl, fileUrl]);
+
+        const postId = result.rows?.insertId ?? result.insertId;
 
         // Gestisci i file allegati
         if (req.files && req.files['files'] && req.files['files'].length > 0) {
@@ -293,8 +302,12 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
             values.push(category);
         }
         if (imageUrl) {
-            updateFields.push(`image = ?`);
+            updateFields.push(`image_url = ?`);
             values.push(imageUrl);
+        }
+        if (fileUrl) {
+            updateFields.push(`file_url = ?`);
+            values.push(fileUrl);
         }
 
         if (updateFields.length === 0) {
@@ -333,7 +346,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
         // Verifica che il post esista
         const existingPost = await query(
-            'SELECT user_id, image FROM posts WHERE id = ?',
+            'SELECT user_id, image_url, file_url FROM posts WHERE id = ?',
             [id]
         );
 
@@ -353,10 +366,18 @@ router.delete('/:id', authenticateToken, async (req, res) => {
         }
 
         // Elimina l'immagine dal filesystem se esiste
-        if (existingPost.rows[0].image) {
-            const imagePath = path.join(__dirname, '..', existingPost.rows[0].image);
+        if (existingPost.rows[0].image_url) {
+            const imagePath = path.join(__dirname, '..', existingPost.rows[0].image_url);
             if (fs.existsSync(imagePath)) {
                 fs.unlinkSync(imagePath);
+            }
+        }
+
+        // Elimina il file dal filesystem se esiste
+        if (existingPost.rows[0].file_url) {
+            const filePath = path.join(__dirname, '..', existingPost.rows[0].file_url);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
             }
         }
 
