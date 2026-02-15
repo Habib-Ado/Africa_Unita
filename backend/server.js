@@ -21,6 +21,7 @@ import commentRoutes from './routes/comments.js';
 import meetingRoutes from './routes/meetings.js';
 import loanRoutes from './routes/loans.js';
 import adminRoutes from './routes/admin.js';
+import statsRoutes from './routes/stats.js';
 
 // Configurazione
 dotenv.config();
@@ -84,6 +85,7 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/stats', statsRoutes);
 
 
 // Serve frontend (anche in sviluppo, per comodità)

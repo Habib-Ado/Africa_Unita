@@ -9,11 +9,25 @@ export default class extends AbstractView {
         this.siteContent = [];
         this.meetings = [];
         this.stats = {
-            members: 150,
-            events: 45,
+            members: 0,
+            events: 0,
             opportunities: 0,
             countries: 54
         };
+    }
+
+    async loadStats() {
+        try {
+            const response = await apiFetch('/api/stats');
+            if (response.ok) {
+                const payload = await response.json();
+                const data = payload?.data || {};
+                this.stats.members = parseInt(data.members, 10) || 0;
+                this.stats.events = parseInt(data.events, 10) || 0;
+            }
+        } catch (error) {
+            console.error('Errore caricamento statistiche:', error);
+        }
     }
 
     async loadPosts() {
@@ -84,11 +98,14 @@ export default class extends AbstractView {
     }
 
     async getHtml() {
-        await this.loadPosts();
-        await this.loadSiteContent();
-        await this.loadMeetings();
+        await Promise.all([
+            this.loadStats(),
+            this.loadPosts(),
+            this.loadSiteContent(),
+            this.loadMeetings()
+        ]);
         
-        // Aggiorna statistiche dinamiche
+        // Aggiorna statistiche dinamiche: membri e eventi da API, opportunità = numero post
         this.stats.opportunities = this.posts.length;
         
         // Controlla se c'è una ricerca attiva
