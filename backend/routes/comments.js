@@ -97,9 +97,8 @@ router.post('/post/:postId', authenticateToken, validateComment, async (req, res
         }
 
         const result = await query(`
-            INSERT INTO comments (post_id, user_id, content, parent_comment_id)
-            VALUES (?, ?, ?, ?)
-            , content, created_at
+            INSERT INTO comments (post_id, user_id, content, parent_comment_id, is_approved)
+            VALUES (?, ?, ?, ?, 1)
         `, [postId, userId, content, parent_comment_id || null]);
 
         res.status(201).json({
@@ -136,9 +135,8 @@ router.post('/content/:contentId', authenticateToken, validateComment, async (re
         }
 
         const result = await query(`
-            INSERT INTO comments (content_id, user_id, content, parent_comment_id)
-            VALUES (?, ?, ?, ?)
-            , content, created_at
+            INSERT INTO comments (content_id, user_id, content, parent_comment_id, is_approved)
+            VALUES (?, ?, ?, ?, 1)
         `, [contentId, userId, content, parent_comment_id || null]);
 
         res.status(201).json({

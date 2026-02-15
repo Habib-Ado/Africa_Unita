@@ -151,7 +151,7 @@ export default class extends AbstractView {
                                      width="40" height="40"
                                      style="object-fit: cover;">
                                 <div>
-                                    <div class="fw-bold">${this.data.author_first_name || ''} ${this.data.author_last_name || ''}</div>
+                                    <div class="fw-bold">${(`${this.data.author_first_name || this.data.author_name || ''} ${this.data.author_last_name || this.data.author_surname || ''}`).trim() || 'Autore'}</div>
                                     <small>${new Date(this.data.published_at || this.data.created_at).toLocaleDateString('it-IT', { 
                                         year: 'numeric', 
                                         month: 'long', 
@@ -165,8 +165,8 @@ export default class extends AbstractView {
                                 ` : ''}
                             </div>
 
-                            ${this.data.featured_image_url || this.data.image_url ? `
-                                <img src="${this.data.featured_image_url || this.data.image_url}" 
+                            ${(this.data.featured_image_url || this.data.image_url || this.data.image) ? `
+                                <img src="${this.data.featured_image_url || this.data.image_url || this.data.image}" 
                                      alt="${this.data.title}" 
                                      class="img-fluid rounded mb-4">
                             ` : ''}
@@ -286,8 +286,8 @@ export default class extends AbstractView {
                                          class="rounded-circle mb-3" 
                                          width="80" height="80"
                                          style="object-fit: cover;">
-                                    <h5>${this.data.author_first_name || ''} ${this.data.author_last_name || ''}</h5>
-                                    <p class="text-muted">@${this.data.author_username || 'user'}</p>
+                                    <h5>${(`${this.data.author_first_name || this.data.author_name || ''} ${this.data.author_last_name || this.data.author_surname || ''}`).trim() || 'Autore'}</h5>
+                                    <p class="text-muted">@${this.data.author_username || this.data.username || 'user'}</p>
                                 </div>
                             </div>
                         </div>

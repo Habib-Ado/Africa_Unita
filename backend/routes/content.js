@@ -207,8 +207,8 @@ router.get('/:id', async (req, res) => {
 
         const contentResult = await query(`
             SELECT 
-                sc.*, u.first_name as author_name, u.last_name as author_surname, 
-                u.avatar as author_avatar
+                sc.*, u.username as author_username, u.first_name as author_name, u.last_name as author_surname, 
+                u.avatar_url as author_avatar
             FROM site_content sc
             JOIN users u ON sc.author_id = u.id
             ${whereClause}

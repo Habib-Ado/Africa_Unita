@@ -124,7 +124,7 @@ export default class extends AbstractView {
                             <p class="card-text text-muted">${(c.content || '').slice(0, 120)}${(c.content||'').length>120?'...':''}</p>
                             <div class="mt-auto">
                                 <div class="d-flex justify-content-between align-items-center small text-muted mb-2">
-                                    <span><i class="fas fa-user"></i> ${c.author_first_name || ''} ${c.author_last_name || ''}</span>
+                                    <span><i class="fas fa-user"></i> ${c.author_name || c.author_first_name || ''} ${c.author_surname || c.author_last_name || ''}</span>
                                     <span><i class="fas fa-eye"></i> ${c.view_count || 0}</span>
                                 </div>
                                 <div class="small text-muted">
@@ -142,13 +142,18 @@ export default class extends AbstractView {
             <div class="col-md-6 col-lg-4">
                 <a href="/post/${p.id}" data-link class="text-decoration-none">
                     <div class="card h-100 shadow-sm clickable-card">
-                        ${p.image_url ? `<img class="card-img-top" src="${p.image_url}" alt="${p.title}" style="max-height: 200px; object-fit: cover;">` : ''}
+                        ${p.image_url || p.image ? `<img class="card-img-top" src="${p.image_url || p.image}" alt="${p.title}" style="max-height: 200px; object-fit: cover;">` : ''}
                     <div class="card-body d-flex flex-column">
                             <h5 class="card-title text-dark">${p.title}</h5>
                         <p class="card-text text-muted">${(p.description || '').slice(0, 140)}${(p.description||'').length>140?'...':''}</p>
-                        <div class="mt-auto d-flex justify-content-between small text-muted">
-                            <span><i class="fas fa-folder"></i> ${p.category}</span>
-                            <span><i class="fas fa-clock"></i> ${new Date(p.created_at).toLocaleDateString()}</span>
+                        <div class="mt-auto">
+                            <div class="d-flex justify-content-between align-items-center small text-muted mb-1">
+                                <span><i class="fas fa-user"></i> ${(`${p.author_name || ''} ${p.author_surname || ''}`).trim() || '—'}</span>
+                                <span><i class="fas fa-folder"></i> ${p.category}</span>
+                            </div>
+                            <div class="small text-muted">
+                                <i class="fas fa-clock"></i> ${new Date(p.created_at).toLocaleDateString()}
+                            </div>
                         </div>
                                         </div>
                                                     </div>
