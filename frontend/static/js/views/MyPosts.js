@@ -359,6 +359,9 @@ export default class extends AbstractView {
                 this.savePost();
             });
         }
+
+        // Mostra la lista degli annunci caricata (altrimenti resterebbe vuota al primo caricamento)
+        this.updatePostsList();
     }
 
     showPostModal(post = null) {
