@@ -410,8 +410,17 @@ export default class extends AbstractView {
     }
 
     async submitComment() {
-        const content = document.getElementById('comment-content').value.trim();
+        if (this._submittingComment) return;
+        const contentEl = document.getElementById('comment-content');
+        const submitBtn = document.querySelector('#comment-form button[type="submit"]');
+        const content = contentEl?.value?.trim();
         if (!content) return;
+
+        this._submittingComment = true;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Invio...';
+        }
 
         try {
             const endpoint = this.type === 'content' 
@@ -424,10 +433,10 @@ export default class extends AbstractView {
             });
 
             if (response.ok) {
-                document.getElementById('comment-content').value = '';
+                if (contentEl) contentEl.value = '';
                 await this.loadComments();
-                document.getElementById('comments-list').innerHTML = this.renderComments();
-                // Non serve ri-inizializzare listener, usiamo event delegation!
+                const listEl = document.getElementById('comments-list');
+                if (listEl) listEl.innerHTML = this.renderComments();
             } else {
                 const error = await response.json();
                 alert('Errore: ' + (error.message || 'Impossibile aggiungere il commento'));
@@ -435,6 +444,12 @@ export default class extends AbstractView {
         } catch (error) {
             console.error('Error submitting comment:', error);
             alert('Errore nell\'invio del commento');
+        } finally {
+            this._submittingComment = false;
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Invia Commento';
+            }
         }
     }
     
