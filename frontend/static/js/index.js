@@ -243,12 +243,21 @@ window.addEventListener("popstate", () => router())
 document.addEventListener("DOMContentLoaded", async () => {
     // Sposta qui l'inizializzazione del modal "Chi Siamo" (niente inline script per CSP)
     const aboutLinks = document.querySelectorAll('a[href="#about"]');
+    const aboutModalEl = document.getElementById('aboutModal');
+    if (aboutModalEl && window.bootstrap?.Modal) {
+        aboutModalEl.addEventListener('hidden.bs.modal', () => {
+            // Rimuovi l'hash #about dall'URL e aggiorna la vista così la pagina si aggiorna alla chiusura
+            if (window.location.hash === '#about' || window.location.hash === '#') {
+                history.replaceState(null, null, window.location.pathname + window.location.search);
+            }
+            router();
+        });
+    }
     aboutLinks.forEach(link => {
         link.addEventListener('click', function (e) {
             e.preventDefault();
-            const aboutModalEl = document.getElementById('aboutModal');
             if (aboutModalEl && window.bootstrap?.Modal) {
-                const aboutModal = new bootstrap.Modal(aboutModalEl);
+                const aboutModal = bootstrap.Modal.getOrCreateInstance(aboutModalEl);
                 aboutModal.show();
             }
         });
