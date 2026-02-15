@@ -119,8 +119,8 @@ router.get('/my', authenticateToken, async (req, res) => {
 
         const result = await query(`
             SELECT 
-                p.id, p.title, p.description as content, p.category, p.image_url,
-                p.is_published, p.views, p.created_at, p.updated_at
+                p.id, p.title, p.description, p.category, p.location, p.contact_info, p.image_url,
+                p.is_published, p.views_count, p.created_at, p.updated_at
             FROM posts p
             WHERE p.user_id = ?
             ORDER BY p.created_at DESC
@@ -147,7 +147,7 @@ router.get('/:id', async (req, res) => {
         const result = await query(
             `SELECT 
                 p.id, p.title, p.description as content, p.category, p.image_url,
-                p.views, p.created_at, p.updated_at,
+                p.views_count, p.created_at, p.updated_at,
                 u.id as user_id, u.username as author_username, u.first_name as author_name,
                 u.last_name as author_surname, u.avatar_url as author_avatar
              FROM posts p
@@ -396,7 +396,7 @@ router.post('/:id/view', async (req, res) => {
         // Incrementa il contatore
         await query(`
             UPDATE posts 
-            SET views = views + 1 
+            SET views_count = views_count + 1 
             WHERE id = ? AND is_published = 1
         `, [id]);
         
