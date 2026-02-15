@@ -87,7 +87,7 @@ router.get('/', async (req, res) => {
 
         const result = await query(
             `SELECT 
-                p.id, p.title, p.description, p.category, p.image_url, p.file_url, p.created_at, p.updated_at,
+                p.id, p.title, p.description, p.category, p.image_url, p.created_at, p.updated_at,
                 u.first_name as author_name,
                 u.last_name as author_surname
              FROM posts p
@@ -119,7 +119,7 @@ router.get('/my', authenticateToken, async (req, res) => {
 
         const result = await query(`
             SELECT 
-                p.id, p.title, p.description as content, p.category, p.image_url, p.file_url,
+                p.id, p.title, p.description as content, p.category, p.image_url,
                 p.is_published, p.views, p.created_at, p.updated_at
             FROM posts p
             WHERE p.user_id = ?
@@ -146,7 +146,7 @@ router.get('/:id', async (req, res) => {
 
         const result = await query(
             `SELECT 
-                p.id, p.title, p.description as content, p.category, p.image_url, p.file_url,
+                p.id, p.title, p.description as content, p.category, p.image_url,
                 p.views, p.created_at, p.updated_at,
                 u.id as user_id, u.username as author_username, u.first_name as author_name,
                 u.last_name as author_surname, u.avatar_url as author_avatar
@@ -211,24 +211,27 @@ router.post('/', authenticateToken, uploadFiles.fields([
             imageUrl = `/uploads/posts/${req.files['image'][0].filename}`;
         }
 
-        // Gestisci file se caricato
-        let fileUrl = null;
-        if (req.files && req.files['files'] && req.files['files'][0]) {
-            fileUrl = `/uploads/posts/${req.files['files'][0].filename}`;
-        }
-
         const location = req.body.location || null;
         const contactInfo = req.body.contact_info || null;
 
         const result = await query(`
-            INSERT INTO posts (user_id, title, description, category, location, contact_info, image_url, file_url, is_published)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-        `, [userId, title, postContent, category, location, contactInfo, imageUrl, fileUrl]);
+            INSERT INTO posts (user_id, title, description, category, location, contact_info, image_url, is_published)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        `, [userId, title, postContent, category, location, contactInfo, imageUrl]);
 
-        const postId = result.rows?.insertId ?? result.insertId;
+        let postId = result.rows?.insertId;
+        if (postId == null && result.rows && !Array.isArray(result.rows)) {
+            postId = result.rows.insertId;
+        }
+        if (postId == null) {
+            const idResult = await query('SELECT LAST_INSERT_ID() as id', []);
+            const row = Array.isArray(idResult.rows) ? idResult.rows[0] : idResult.rows;
+            if (row && typeof row.id !== 'undefined') postId = row.id;
+            else if (row && typeof row.ID !== 'undefined') postId = row.ID;
+        }
 
-        // Gestisci i file allegati
-        if (req.files && req.files['files'] && req.files['files'].length > 0) {
+        // Gestisci i file allegati (solo se abbiamo un postId valido)
+        if (postId != null && req.files && req.files['files'] && req.files['files'].length > 0) {
             for (const file of req.files['files']) {
                 await query(`
                     INSERT INTO post_files (post_id, file_name, file_path, file_size, mime_type)
@@ -240,13 +243,14 @@ router.post('/', authenticateToken, uploadFiles.fields([
         res.status(201).json({
             success: true,
             message: 'Annuncio creato con successo',
-            data: { post: result.rows[0] }
+            data: { post: { id: postId, title, description: postContent, category } }
         });
     } catch (error) {
         console.error('Create post error:', error);
+        const msg = error.message || 'Errore nella creazione dell\'annuncio';
         res.status(500).json({
             success: false,
-            message: 'Errore nella creazione dell\'annuncio'
+            message: msg
         });
     }
 });
@@ -305,10 +309,6 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
             updateFields.push(`image_url = ?`);
             values.push(imageUrl);
         }
-        if (fileUrl) {
-            updateFields.push(`file_url = ?`);
-            values.push(fileUrl);
-        }
 
         if (updateFields.length === 0) {
             return res.status(400).json({
@@ -346,7 +346,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
         // Verifica che il post esista
         const existingPost = await query(
-            'SELECT user_id, image_url, file_url FROM posts WHERE id = ?',
+            'SELECT user_id, image_url FROM posts WHERE id = ?',
             [id]
         );
 
@@ -370,14 +370,6 @@ router.delete('/:id', authenticateToken, async (req, res) => {
             const imagePath = path.join(__dirname, '..', existingPost.rows[0].image_url);
             if (fs.existsSync(imagePath)) {
                 fs.unlinkSync(imagePath);
-            }
-        }
-
-        // Elimina il file dal filesystem se esiste
-        if (existingPost.rows[0].file_url) {
-            const filePath = path.join(__dirname, '..', existingPost.rows[0].file_url);
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
             }
         }
 
