@@ -194,10 +194,11 @@ router.post('/', authenticateToken, uploadFiles.fields([
     { name: 'files', maxCount: 10 }
 ]), async (req, res) => {
     try {
-        const { title, content, category } = req.body;
+        const { title, content, description, category } = req.body;
         const userId = req.user.id;
+        const postContent = content || description;
 
-        if (!title || !content || !category) {
+        if (!title || !postContent || !category) {
             return res.status(400).json({
                 success: false,
                 message: 'Titolo, contenuto e categoria sono obbligatori'
@@ -213,7 +214,7 @@ router.post('/', authenticateToken, uploadFiles.fields([
         const result = await query(`
             INSERT INTO posts (user_id, title, description, category, image, is_published)
             VALUES (?, ?, ?, ?, ?, ?)
-        `, [userId, title, content, category, imageUrl, 1]);
+        `, [userId, title, postContent, category, imageUrl, 1]);
 
         const postId = result.rows.insertId;
 
@@ -245,7 +246,8 @@ router.post('/', authenticateToken, uploadFiles.fields([
 router.put('/:id', authenticateToken, upload.single('image'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, content, category } = req.body;
+        const { title, content, description, category } = req.body;
+        const postContent = content || description;
         const userId = req.user.id;
 
         // Verifica che il post esista e appartenga all'utente
@@ -282,9 +284,9 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
             updateFields.push(`title = ?`);
             values.push(title);
         }
-        if (content) {
+        if (postContent) {
             updateFields.push(`description = ?`);
-            values.push(content);
+            values.push(postContent);
         }
         if (category) {
             updateFields.push(`category = ?`);
