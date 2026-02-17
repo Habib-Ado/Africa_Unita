@@ -11,11 +11,12 @@ async function notifyAllMembers(type, title, message, link) {
     try {
         console.log(`📧 Invio notifiche email: tipo=${type}, titolo="${title}"`);
         
-        // Verifica che le credenziali email siano configurate
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.error('❌ Credenziali email non configurate! Imposta EMAIL_USER e EMAIL_PASS nel file .env');
+        // Verifica che le credenziali email siano configurate (supporta sia EMAIL_PASS che EMAIL_PASSWORD)
+        const emailPass = process.env.EMAIL_PASSWORD;
+        if (!process.env.EMAIL_USER || !emailPass) {
+            console.error('❌ Credenziali email non configurate! Imposta EMAIL_USER e EMAIL_PASSWORD nel file .env');
             console.error('   EMAIL_USER presente:', !!process.env.EMAIL_USER);
-            console.error('   EMAIL_PASS presente:', !!process.env.EMAIL_PASS);
+            console.error('   EMAIL_PASSWORD presente:', !!process.env.EMAIL_PASSWORD);
             return;
         }
         

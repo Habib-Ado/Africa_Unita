@@ -10,11 +10,16 @@ class EmailService {
 
     initializeTransporter() {
         // Configurazione per Gmail (può essere cambiata per altri provider)
+        // Supporta sia EMAIL_PASS che EMAIL_PASSWORD per compatibilità
+        const emailPass = process.env.EMAIL_PASSWORD || process.env.EMAIL_PASS || 'your-app-password';
+        // Rimuovi eventuali spazi dalla password (le App Password di Gmail non devono avere spazi)
+        const cleanPassword = emailPass.replace(/\s+/g, '');
+        
         this.transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
                 user: process.env.EMAIL_USER || 'your-email@gmail.com',
-                pass: process.env.EMAIL_PASS || 'your-app-password'
+                pass: cleanPassword
             }
         });
     }
@@ -247,14 +252,20 @@ class EmailService {
 
     // Metodo generico per inviare email
     async sendEmail(to, subject, html) {
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.error('❌ Credenziali email non configurate (EMAIL_USER o EMAIL_PASS mancanti)');
-            console.error('   Configura EMAIL_USER e EMAIL_PASS nel file .env del backend');
+        // Supporta sia EMAIL_PASS che EMAIL_PASSWORD per compatibilità
+        const emailPass = process.env.EMAIL_PASSWORD || process.env.EMAIL_PASS;
+        
+        if (!process.env.EMAIL_USER || !emailPass) {
+            console.error('❌ Credenziali email non configurate (EMAIL_USER o EMAIL_PASSWORD/EMAIL_PASS mancanti)');
+            console.error('   Configura EMAIL_USER e EMAIL_PASSWORD nel file .env del backend');
+            console.error('   EMAIL_USER presente:', !!process.env.EMAIL_USER);
+            console.error('   EMAIL_PASSWORD presente:', !!process.env.EMAIL_PASSWORD);
+            console.error('   EMAIL_PASS presente:', !!process.env.EMAIL_PASS);
             return false;
         }
 
         // Verifica che le credenziali non siano i valori di default
-        if (process.env.EMAIL_USER === 'your-email@gmail.com' || process.env.EMAIL_PASS === 'your-app-password') {
+        if (process.env.EMAIL_USER === 'your-email@gmail.com' || emailPass === 'your-app-password') {
             console.error('❌ Credenziali email non configurate correttamente');
             console.error('   Sostituisci i valori di default con le tue credenziali reali nel file .env');
             return false;
