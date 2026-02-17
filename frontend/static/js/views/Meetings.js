@@ -283,12 +283,32 @@ export default class extends AbstractView {
         
         const formData = new FormData(e.target);
         const meetingId = formData.get('meeting_id');
+        
+        if (!meetingId) {
+            alert('Errore: ID riunione non trovato');
+            this._updatingMeeting = false;
+            return;
+        }
+        
+        // Prepara i dati: converte stringhe vuote in null per i campi opzionali
+        const title = formData.get('title')?.trim();
+        const description = formData.get('description')?.trim() || null;
+        const meeting_date = formData.get('meeting_date')?.trim() || null;
+        const meeting_time = formData.get('meeting_time')?.trim() || null;
+        const location = formData.get('location')?.trim() || null;
+        
+        if (!title) {
+            alert('Il titolo è obbligatorio');
+            this._updatingMeeting = false;
+            return;
+        }
+        
         const data = {
-            title: formData.get('title'),
-            description: formData.get('description'),
-            meeting_date: formData.get('meeting_date'),
-            meeting_time: formData.get('meeting_time'),
-            location: formData.get('location')
+            title: title,
+            description: description,
+            meeting_date: meeting_date,
+            meeting_time: meeting_time,
+            location: location
         };
 
         const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -310,12 +330,14 @@ export default class extends AbstractView {
                 e.target.reset();
                 await this.loadMeetings();
             } else {
-                const error = await response.json();
-                alert('Errore: ' + (error.message || 'Impossibile aggiornare la riunione'));
+                const errorData = await response.json();
+                const errorMsg = errorData?.message || 'Impossibile aggiornare la riunione';
+                console.error('Errore aggiornamento:', errorData);
+                alert('Errore: ' + errorMsg);
             }
         } catch (error) {
             console.error('Error updating meeting:', error);
-            alert('Errore nell\'aggiornamento della riunione');
+            alert('Errore nell\'aggiornamento della riunione: ' + (error.message || 'Errore di connessione'));
         } finally {
             this._updatingMeeting = false;
             if (submitBtn) {

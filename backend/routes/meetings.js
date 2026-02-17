@@ -190,35 +190,88 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
         const { id } = req.params;
         const { title, description, meeting_date, meeting_time, location, status } = req.body;
         
-        const result = await query(`
-            UPDATE meetings
-            SET title = COALESCE(?, title),
-                description = COALESCE(?, description),
-                meeting_date = COALESCE(?, meeting_date),
-                meeting_time = COALESCE(?, meeting_time),
-                location = COALESCE(?, location),
-                status = COALESCE(?, status),
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `, [title, description, meeting_date, meeting_time, location, status, id]);
-        
-        if (result.rows.length === 0) {
+        // Verifica che la riunione esista prima di aggiornarla
+        const existingMeeting = await query('SELECT id FROM meetings WHERE id = ?', [id]);
+        if (existingMeeting.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Riunione non trovata'
             });
         }
         
+        // Costruisci dinamicamente la query UPDATE solo per i campi forniti (non null/undefined)
+        const updateFields = [];
+        const values = [];
+        
+        if (title !== undefined && title !== null) {
+            updateFields.push('title = ?');
+            values.push(title);
+        }
+        if (description !== undefined && description !== null) {
+            updateFields.push('description = ?');
+            values.push(description);
+        }
+        if (meeting_date !== undefined && meeting_date !== null && meeting_date !== '') {
+            updateFields.push('meeting_date = ?');
+            values.push(meeting_date);
+        }
+        if (meeting_time !== undefined && meeting_time !== null) {
+            updateFields.push('meeting_time = ?');
+            values.push(meeting_time || null);
+        }
+        if (location !== undefined && location !== null) {
+            updateFields.push('location = ?');
+            values.push(location);
+        }
+        if (status !== undefined && status !== null) {
+            updateFields.push('status = ?');
+            values.push(status);
+        }
+        
+        // Aggiungi sempre updated_at
+        updateFields.push('updated_at = CURRENT_TIMESTAMP');
+        
+        if (updateFields.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nessun campo da aggiornare'
+            });
+        }
+        
+        values.push(id);
+        
+        await query(`
+            UPDATE meetings
+            SET ${updateFields.join(', ')}
+            WHERE id = ?
+        `, values);
+        
+        // Recupera la riunione aggiornata
+        const updatedMeeting = await query(`
+            SELECT m.*, 
+                   CONCAT(u.first_name, ' ', u.last_name) as created_by_name
+            FROM meetings m
+            LEFT JOIN users u ON m.created_by = u.id
+            WHERE m.id = ?
+        `, [id]);
+        
+        if (updatedMeeting.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Riunione non trovata dopo l\'aggiornamento'
+            });
+        }
+        
         res.json({
             success: true,
             message: 'Riunione aggiornata con successo',
-            data: { meeting: result.rows[0] }
+            data: { meeting: updatedMeeting.rows[0] }
         });
     } catch (error) {
         console.error('Error updating meeting:', error);
         res.status(500).json({
             success: false,
-            message: 'Errore nell\'aggiornamento della riunione'
+            message: 'Errore nell\'aggiornamento della riunione: ' + (error.message || 'Errore sconosciuto')
         });
     }
 });
