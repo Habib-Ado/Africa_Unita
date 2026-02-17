@@ -2,80 +2,145 @@ import express from 'express';
 import { query } from '../database/db.js';
 import pool from '../database/db.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
+import emailService from '../services/emailService.js';
 
 const router = express.Router();
 
-// Helper function per inviare notifiche a tutti i membri attivi
+// Helper function per inviare notifiche via email a tutti i membri attivi
 async function notifyAllMembers(type, title, message, link) {
     try {
-        console.log(`📢 Invio notifiche: tipo=${type}, titolo="${title}"`);
+        console.log(`📧 Invio notifiche email: tipo=${type}, titolo="${title}"`);
         
-        // Ottieni tutti i membri attivi
+        // Ottieni tutti i membri attivi con email
         const activeMembersResult = await query(`
-            SELECT id FROM users 
-            WHERE status = 'active'
+            SELECT id, email, first_name, last_name, username 
+            FROM users 
+            WHERE status = 'active' AND email IS NOT NULL AND email != ''
         `, []);
 
         const activeMembers = activeMembersResult.rows || [];
-        console.log(`Trovati ${activeMembers.length} membri attivi`);
+        console.log(`Trovati ${activeMembers.length} membri attivi con email`);
         
         if (activeMembers.length === 0) {
-            console.log('⚠️ Nessun membro attivo trovato per le notifiche');
+            console.log('⚠️ Nessun membro attivo con email trovato per le notifiche');
             return;
         }
 
-        // Debug: mostra la struttura dei dati
-        if (activeMembers.length > 0) {
-            console.log('Esempio membro (primo):', JSON.stringify(activeMembers[0], null, 2));
-            console.log('Tipo del primo membro:', typeof activeMembers[0]);
-            console.log('Chiavi del primo membro:', Object.keys(activeMembers[0] || {}));
-        }
+        // Prepara il link completo
+        const baseUrl = process.env.CORS_ORIGIN || process.env.RAILWAY_PUBLIC_DOMAIN 
+            ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` 
+            : 'http://localhost:8080';
+        const fullLink = link ? `${baseUrl}${link}` : `${baseUrl}/meetings`;
 
-        // Crea una notifica per ogni membro
-        // mysql2 restituisce rows come array di oggetti con proprietà corrispondenti alle colonne
-        const notificationPromises = activeMembers.map((member, index) => {
-            // Estrai l'ID - mysql2 restituisce oggetti con proprietà corrispondenti alle colonne SELECT
-            let userId = null;
+        // Invia email a ogni membro
+        const emailPromises = activeMembers.map(async (member) => {
+            const userId = member.id || member.ID || member.user_id;
+            const userEmail = member.email;
+            const userName = member.first_name || member.username || 'Membro';
             
-            // Prova diversi modi per estrarre l'ID
-            if (member && typeof member === 'object') {
-                userId = member.id || member.ID || member.user_id;
+            if (!userId || !userEmail) {
+                console.warn(`⚠️ Membro senza ID o email valido:`, { userId, email: userEmail });
+                return { skipped: true };
             }
             
-            if (!userId) {
-                console.warn(`⚠️ Membro ${index} senza ID valido. Struttura:`, JSON.stringify(member));
-                return Promise.resolve({ skipped: true });
+            try {
+                // Crea il template HTML per l'email
+                const emailHtml = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <title>${title} - Africa Unita</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                            .header { background: #2c5530; color: white; padding: 20px; text-align: center; }
+                            .content { padding: 30px; background: #f9f9f9; }
+                            .message-box { background: #fff; padding: 20px; border-left: 4px solid #2c5530; margin: 20px 0; }
+                            .button { 
+                                display: inline-block; 
+                                background: #2c5530; 
+                                color: white; 
+                                padding: 12px 30px; 
+                                text-decoration: none; 
+                                border-radius: 5px; 
+                                margin: 20px 0;
+                            }
+                            .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <div class="header">
+                                <h1>🌍 Africa Unita</h1>
+                                <p>Associazione di supporto per migranti africani</p>
+                            </div>
+                            <div class="content">
+                                <h2>Ciao ${userName}!</h2>
+                                <div class="message-box">
+                                    <h3>${title}</h3>
+                                    <p style="white-space: pre-line;">${message}</p>
+                                </div>
+                                <p>Per maggiori informazioni, visita la piattaforma:</p>
+                                <a href="${fullLink}" class="button">📅 Vedi Riunioni</a>
+                            </div>
+                            <div class="footer">
+                                <p>Africa Unita - Uniti per un futuro migliore</p>
+                                <p>Questa è una notifica automatica. Non rispondere a questa email.</p>
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                `;
+
+                // Invia l'email usando il transporter di nodemailer direttamente
+                const nodemailer = (await import('nodemailer')).default;
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    auth: {
+                        user: process.env.EMAIL_USER || 'your-email@gmail.com',
+                        pass: process.env.EMAIL_PASS || 'your-app-password'
+                    }
+                });
+
+                await transporter.sendMail({
+                    from: process.env.EMAIL_USER || 'noreply@africaunita.it',
+                    to: userEmail,
+                    subject: title,
+                    html: emailHtml
+                });
+
+                console.log(`✅ Email inviata a: ${userEmail} (${userName})`);
+                
+                // Salva anche nel database per riferimento
+                await query(`
+                    INSERT INTO notifications (user_id, type, title, message, link)
+                    VALUES (?, ?, ?, ?, ?)
+                `, [userId, type, title, message, link || null]).catch(err => {
+                    console.warn(`⚠️ Errore salvataggio notifica DB per ${userId}:`, err.message);
+                });
+                
+                return { success: true, userId, email: userEmail };
+            } catch (err) {
+                console.error(`❌ Errore invio email a ${userEmail}:`, err.message);
+                return { success: false, userId, email: userEmail, error: err.message };
             }
-            
-            console.log(`📨 Creando notifica per utente ID: ${userId}`);
-            return query(`
-                INSERT INTO notifications (user_id, type, title, message, link)
-                VALUES (?, ?, ?, ?, ?)
-            `, [userId, type, title, message, link || null])
-            .then(result => {
-                console.log(`✅ Notifica creata per utente ${userId}`);
-                return { success: true, userId };
-            })
-            .catch(err => {
-                console.error(`❌ Errore creazione notifica per utente ${userId}:`, err.message);
-                return { success: false, userId, error: err.message };
-            });
         });
 
-        const results = await Promise.all(notificationPromises);
+        const results = await Promise.all(emailPromises);
         const successCount = results.filter(r => r && r.success).length;
         const failedCount = results.filter(r => r && !r.success && !r.skipped).length;
         const skippedCount = results.filter(r => r && r.skipped).length;
         
-        console.log(`✅ Notifiche create: ${successCount}/${activeMembers.length} membri attivi`);
+        console.log(`✅ Email inviate: ${successCount}/${activeMembers.length} membri attivi`);
         if (failedCount > 0) {
-            console.log(`❌ Notifiche fallite: ${failedCount}`);
+            console.log(`❌ Email fallite: ${failedCount}`);
         }
         if (skippedCount > 0) {
-            console.log(`⚠️ Notifiche saltate (ID non valido): ${skippedCount}`);
+            console.log(`⚠️ Email saltate (dati mancanti): ${skippedCount}`);
         }
     } catch (error) {
-        console.error('❌ Errore nell\'invio delle notifiche:', error);
+        console.error('❌ Errore nell\'invio delle notifiche email:', error);
         console.error('Stack trace:', error.stack);
         // Non bloccare il processo principale se le notifiche falliscono
     }
