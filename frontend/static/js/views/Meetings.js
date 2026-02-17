@@ -8,6 +8,8 @@ export default class extends AbstractView {
         this.meetings = [];
         this.currentMeeting = null;
         this.attendanceList = [];
+        this._listenersInitialized = false;
+        this.meetingActionHandler = null;
     }
 
     async init() {
@@ -95,14 +97,17 @@ export default class extends AbstractView {
     }
 
     initializeEventListeners() {
+        // Evita di aggiungere listener multipli
+        if (this._listenersInitialized) return;
+        
         // Pulsante nuova riunione
         const newMeetingBtn = document.getElementById('new-meeting-btn');
         if (newMeetingBtn) {
             newMeetingBtn.addEventListener('click', () => this.showNewMeetingModal());
         }
 
-        // Event delegation per azioni meeting
-        const meetingActionHandler = async (e) => {
+        // Event delegation per azioni meeting (una sola volta)
+        this.meetingActionHandler = async (e) => {
             const actionBtn = e.target.closest('.btn-meeting-action');
             if (actionBtn) {
                 const meetingId = actionBtn.dataset.meetingId;
@@ -118,12 +123,8 @@ export default class extends AbstractView {
             }
         };
         
-        // Rimuovi listener precedenti se esistono per evitare duplicati
-        if (this.meetingActionHandler) {
-            document.removeEventListener('click', this.meetingActionHandler);
-        }
-        this.meetingActionHandler = meetingActionHandler;
         document.addEventListener('click', this.meetingActionHandler);
+        this._listenersInitialized = true;
     }
 
     showNewMeetingModal() {
@@ -436,23 +437,22 @@ export default class extends AbstractView {
         const cancelBtn = document.getElementById('cancel-new-meeting');
         const newMeetingForm = document.getElementById('new-meeting-form');
         
-        if (closeBtn) {
-            closeBtn.replaceWith(closeBtn.cloneNode(true));
-            document.getElementById('close-new-meeting-modal')?.addEventListener('click', () => this.hideNewMeetingModal());
+        if (closeBtn && !closeBtn.dataset.listenerAdded) {
+            closeBtn.addEventListener('click', () => this.hideNewMeetingModal());
+            closeBtn.dataset.listenerAdded = 'true';
         }
-        if (cancelBtn) {
-            cancelBtn.replaceWith(cancelBtn.cloneNode(true));
-            document.getElementById('cancel-new-meeting')?.addEventListener('click', () => this.hideNewMeetingModal());
+        if (cancelBtn && !cancelBtn.dataset.listenerAdded) {
+            cancelBtn.addEventListener('click', () => this.hideNewMeetingModal());
+            cancelBtn.dataset.listenerAdded = 'true';
         }
         
-        // Event listener per il form nuova riunione (rimuovi vecchio listener se esiste)
-        if (newMeetingForm) {
-            const newForm = newMeetingForm.cloneNode(true);
-            newMeetingForm.parentNode.replaceChild(newForm, newMeetingForm);
-            document.getElementById('new-meeting-form').addEventListener('submit', async (e) => {
+        // Event listener per il form nuova riunione (una sola volta)
+        if (newMeetingForm && !newMeetingForm.dataset.listenerAdded) {
+            newMeetingForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 await this.createMeeting(e);
             });
+            newMeetingForm.dataset.listenerAdded = 'true';
         }
     }
 }
