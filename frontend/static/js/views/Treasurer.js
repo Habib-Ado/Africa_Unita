@@ -13,6 +13,8 @@ export default class extends AbstractView {
         this.loans = [];
         this.filteredLoans = [];
         this.loansSummary = null;
+        this._generatingFees = false;
+        this._listenersInitialized = false;
     }
 
     async init() {
@@ -410,11 +412,14 @@ export default class extends AbstractView {
             }
         });
 
-        // Genera quote mensili
-        const generateBtn = document.getElementById('generate-fees-btn');
-        if (generateBtn) {
-            generateBtn.addEventListener('click', async () => {
-                await this.generateMonthlyFees();
+        // Genera quote mensili (delegazione: un solo listener, niente doppia conferma)
+        if (!this._listenersInitialized) {
+            this._listenersInitialized = true;
+            document.addEventListener('click', (e) => {
+                if (e.target.closest('#generate-fees-btn')) {
+                    e.preventDefault();
+                    this.generateMonthlyFees();
+                }
             });
         }
 
@@ -521,7 +526,15 @@ export default class extends AbstractView {
     }
 
     async generateMonthlyFees() {
+        if (this._generatingFees) return;
         if (!confirm('Generare le quote per il mese corrente per tutti i membri attivi?')) return;
+
+        this._generatingFees = true;
+        const btn = document.getElementById('generate-fees-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generazione...';
+        }
 
         try {
             const token = localStorage.getItem('auth_token');
@@ -533,18 +546,24 @@ export default class extends AbstractView {
                 }
             });
 
+            const data = await response.json();
+
             if (response.ok) {
-                const data = await response.json();
-                alert(data.message);
+                this.showSuccessNotification(data.message || 'Quote mensili generate con successo');
                 await this.loadFees();
-                this.filterFees(); // Reinizializza i filtri
+                this.filterFees();
             } else {
-                const data = await response.json();
-                alert(data.message || 'Errore nella generazione delle quote');
+                this.showErrorNotification(data.message || 'Errore nella generazione delle quote');
             }
         } catch (error) {
             console.error('Error generating fees:', error);
-            alert('Errore nella generazione delle quote');
+            this.showErrorNotification('Errore nella generazione delle quote');
+        } finally {
+            this._generatingFees = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-plus"></i> Genera Quote Mese Corrente';
+            }
         }
     }
 

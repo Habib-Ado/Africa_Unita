@@ -63,20 +63,24 @@ router.get('/my-status', authenticateToken, async (req, res) => {
         const userId = req.user.id;
 
         const result = await query(
-            'SELECT * FROM check_member_payment_status(?)',
+            'SELECT check_member_payment_status(?) AS result',
             [userId]
         );
 
-        if (result.rows.length === 0) {
+        if (!result.rows || result.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Stato pagamenti non disponibile'
             });
         }
 
+        const row = result.rows[0];
+        const statusData = row.result ?? row['result'];
+        const paymentStatus = typeof statusData === 'string' ? JSON.parse(statusData) : statusData;
+
         res.status(200).json({
             success: true,
-            data: { paymentStatus: result.rows[0] }
+            data: { paymentStatus }
         });
 
     } catch (error) {
@@ -91,22 +95,28 @@ router.get('/my-status', authenticateToken, async (req, res) => {
 // POST /api/fees/generate-monthly - Genera quote mensili
 router.post('/generate-monthly', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {
+        const targetDate = new Date().toISOString().split('T')[0];
+        // MySQL: SELECT funzione(?) AS alias (non SELECT * FROM funzione(?))
         const result = await query(
-            'SELECT * FROM generate_monthly_fees(?)',
-            [new Date().toISOString().split('T')[0]]
+            'SELECT generate_monthly_fees(?) AS result',
+            [targetDate]
         );
+
+        const row = result.rows && result.rows[0];
+        const resultData = row && (row.result ?? row['result']);
+        const parsed = typeof resultData === 'string' ? JSON.parse(resultData) : resultData;
 
         res.status(200).json({
             success: true,
             message: 'Quote mensili generate con successo',
-            data: { result: result.rows[0] }
+            data: { result: parsed || row }
         });
 
     } catch (error) {
         console.error('Generate monthly fees error:', error);
         res.status(500).json({
             success: false,
-            message: 'Errore nella generazione delle quote mensili'
+            message: error.message || 'Errore nella generazione delle quote mensili'
         });
     }
 });
@@ -118,21 +128,25 @@ router.put('/:id/confirm', authenticateToken, requireRole('treasurer', 'admin'),
         const treasurerId = req.user.id;
 
         const result = await query(
-            'SELECT * FROM confirm_fee_payment(?, ?)',
+            'SELECT confirm_fee_payment(?, ?) AS result',
             [id, treasurerId]
         );
 
-        if (result.rows.length === 0) {
+        if (!result.rows || result.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Quota non trovata'
             });
         }
 
+        const row = result.rows[0];
+        const confirmData = row.result ?? row['result'];
+        const parsed = typeof confirmData === 'string' ? JSON.parse(confirmData) : confirmData;
+
         res.status(200).json({
             success: true,
             message: 'Pagamento confermato con successo',
-            data: { result: result.rows[0] }
+            data: { result: parsed }
         });
 
     } catch (error) {
