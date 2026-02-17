@@ -357,27 +357,24 @@ export default class extends AbstractView {
             if (response.ok) {
                 console.log('Avatar updated successfully:', data);
                 
+                // Aggiorna i dati dell'utente PRIMA di aggiornare l'immagine
+                this.userData.avatar_url = data.data.avatarUrl || data.data.user?.avatar_url;
+                
                 // Aggiorna l'immagine dell'avatar immediatamente
                 const avatarImg = document.querySelector(".profile-hero-avatar");
                 if (avatarImg) {
                     // Usa l'URL restituito dal server con cache busting
-                    const avatarUrl = `${API_BASE}${data.data.avatarUrl}?t=${Date.now()}`;
+                    const avatarUrl = this.userData.avatar_url 
+                        ? `${API_BASE}${this.userData.avatar_url}?t=${Date.now()}` 
+                        : '/static/img/avatar.png';
                     avatarImg.src = avatarUrl;
                     console.log('Avatar image updated to:', avatarUrl);
                 } else {
                     console.warn('Avatar image element not found');
                 }
                 
-                // Aggiorna i dati dell'utente
-                this.userData.avatar_url = data.data.avatarUrl;
-                
                 // Mostra il messaggio di successo
                 this.showNotification("Avatar aggiornato con successo!");
-                
-                // Opzionale: ricarica dopo 1 secondo per assicurare che tutto sia aggiornato
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
             } else {
                 this.showError(data.message || "Errore durante l'aggiornamento dell'avatar");
             }
@@ -484,7 +481,6 @@ export default class extends AbstractView {
     
     async getHtml() {
         await this.init();
-        this.userData.avatar_url = this.userData.avatar_url || "/static/img/avatar.png";
         
         console.log("User data before rendering:", this.userData);
         console.log("Role:", this.userData.role);
@@ -498,6 +494,11 @@ export default class extends AbstractView {
                          this.userData.role === 'moderator' ? 'role-moderator' :
                          this.userData.role === 'treasurer' ? 'role-treasurer' : 'role-member';
         
+        // Costruisci l'URL dell'avatar con API_BASE e fallback
+        const avatarUrl = this.userData.avatar_url 
+            ? `${API_BASE}${this.userData.avatar_url}?t=${Date.now()}` 
+            : '/static/img/avatar.png';
+        
         return `
         <div class="modern-profile-container">
             <div class="container py-5">
@@ -506,7 +507,7 @@ export default class extends AbstractView {
                     <div class="profile-hero-bg ${roleClass}"></div>
                     <div class="profile-hero-content">
                         <div class="profile-avatar-wrapper">
-                            <img src="${this.userData.avatar_url}?t=${Date.now()}" alt="${this.userData.first_name}" class="profile-hero-avatar" style="object-fit: cover;">
+                            <img src="${avatarUrl}" alt="${this.userData.first_name}" class="profile-hero-avatar" style="object-fit: cover;">
                             <input type="file" id="avatar-input" class="d-none" accept="image/*">
                             <button class="avatar-change-btn" title="Cambia avatar">
                                 <i class="fas fa-camera"></i>
