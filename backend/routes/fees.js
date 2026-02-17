@@ -93,24 +93,48 @@ router.get('/my-status', authenticateToken, async (req, res) => {
     }
 });
 
-// POST /api/fees/generate-monthly - Genera quote mensili
+// POST /api/fees/generate-monthly - Genera quote mensili (logica in JS, non dipende da funzione MySQL)
 router.post('/generate-monthly', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {
-        const targetDate = new Date().toISOString().split('T')[0];
-        // MySQL: SELECT funzione(?) AS alias (non SELECT * FROM funzione(?))
-        const result = await query(
-            'SELECT generate_monthly_fees(?) AS result',
-            [targetDate]
+        const now = new Date();
+        const targetDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+
+        const activeUsers = await query(
+            `SELECT id FROM users WHERE status = 'active' AND role != 'admin'`,
+            []
         );
 
-        const row = result.rows && result.rows[0];
-        const resultData = row && (row.result ?? row['result']);
-        const parsed = typeof resultData === 'string' ? JSON.parse(resultData) : resultData;
+        let feesGenerated = 0;
+        const amount = 10.0;
+
+        for (const row of activeUsers.rows || []) {
+            const userId = row.id;
+            const existing = await query(
+                `SELECT 1 FROM membership_fees 
+                 WHERE user_id = ? AND YEAR(due_date) = ? AND MONTH(due_date) = ?`,
+                [userId, now.getFullYear(), now.getMonth() + 1]
+            );
+            if (existing.rows && existing.rows.length > 0) continue;
+
+            await query(
+                `INSERT INTO membership_fees (user_id, amount, due_date, status) VALUES (?, ?, ?, 'pending')`,
+                [userId, amount, targetDate]
+            );
+            feesGenerated += 1;
+        }
+
+        const totalAmount = feesGenerated * amount;
 
         res.status(200).json({
             success: true,
             message: 'Quote mensili generate con successo',
-            data: { result: parsed || row }
+            data: {
+                result: {
+                    fees_generated: feesGenerated,
+                    total_amount: totalAmount,
+                    target_date: targetDate
+                }
+            }
         });
 
     } catch (error) {
