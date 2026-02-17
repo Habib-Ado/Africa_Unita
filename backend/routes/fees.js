@@ -8,10 +8,11 @@ const router = express.Router();
 router.get('/', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {
         const { status, year, month, limit = 100, offset = 0 } = req.query;
+        const limitNum = Math.max(0, parseInt(limit, 10) || 100);
+        const offsetNum = Math.max(0, parseInt(offset, 10) || 0);
 
         let whereClause = 'WHERE 1=1';
         let queryParams = [];
-        let paramCount = 0;
 
         // Filtro per stato
         if (status) {
@@ -39,8 +40,8 @@ router.get('/', authenticateToken, requireRole('treasurer', 'admin'), async (req
              LEFT JOIN users u ON mf.user_id = u.id
              ${whereClause}
              ORDER BY mf.due_date DESC
-             LIMIT ? OFFSET ?`,
-            [...queryParams, parseInt(limit), parseInt(offset)]
+             LIMIT ${limitNum} OFFSET ${offsetNum}`,
+            queryParams
         );
 
         res.status(200).json({
@@ -196,10 +197,11 @@ router.get('/fund/balance', authenticateToken, requireRole('treasurer', 'admin')
 router.get('/fund/transactions', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {
         const { type, limit = 50, offset = 0 } = req.query;
+        const limitNum = Math.max(0, parseInt(limit, 10) || 50);
+        const offsetNum = Math.max(0, parseInt(offset, 10) || 0);
 
         let whereClause = '';
         let queryParams = [];
-        let paramCount = 0;
 
         // Filtro per tipo di transazione
         if (type) {
@@ -217,8 +219,8 @@ router.get('/fund/transactions', authenticateToken, requireRole('treasurer', 'ad
              LEFT JOIN users u ON ft.treasurer_id = u.id
              ${whereClause}
              ORDER BY ft.transaction_date DESC
-             LIMIT ? OFFSET ?`,
-            [...queryParams, parseInt(limit), parseInt(offset)]
+             LIMIT ${limitNum} OFFSET ${offsetNum}`,
+            queryParams
         );
 
         res.status(200).json({

@@ -8,10 +8,11 @@ const router = express.Router();
 router.get('/', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {
         const { status, user_id, limit = 100, offset = 0 } = req.query;
+        const limitNum = Math.max(0, parseInt(limit, 10) || 100);
+        const offsetNum = Math.max(0, parseInt(offset, 10) || 0);
 
         let whereClause = 'WHERE 1=1';
         let queryParams = [];
-        let paramCount = 0;
 
         // Filtro per stato
         if (status) {
@@ -29,8 +30,8 @@ router.get('/', authenticateToken, requireRole('treasurer', 'admin'), async (req
             `SELECT * FROM loans_with_user
              ${whereClause}
              ORDER BY created_at DESC
-             LIMIT ? OFFSET ?`,
-            [...queryParams, parseInt(limit), parseInt(offset)]
+             LIMIT ${limitNum} OFFSET ${offsetNum}`,
+            queryParams
         );
 
         res.status(200).json({
@@ -359,11 +360,11 @@ router.get('/stats/summary', authenticateToken, requireRole('treasurer', 'admin'
     try {
         const result = await query(`
             SELECT 
-                COUNT(*) FILTER (WHERE status = 'pending') as pending_loans,
-                COUNT(*) FILTER (WHERE status = 'active') as active_loans,
-                COUNT(*) FILTER (WHERE status = 'completed') as completed_loans,
-                COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0) as total_active_amount,
-                COALESCE(SUM(remaining_amount) FILTER (WHERE status = 'active'), 0) as total_remaining,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_loans,
+                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_loans,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_loans,
+                COALESCE(SUM(CASE WHEN status = 'active' THEN amount ELSE 0 END), 0) as total_active_amount,
+                COALESCE(SUM(CASE WHEN status = 'active' THEN remaining_amount ELSE 0 END), 0) as total_remaining,
                 (
                     SELECT COUNT(*)
                     FROM loan_installments
