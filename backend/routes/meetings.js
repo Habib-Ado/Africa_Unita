@@ -11,46 +11,69 @@ async function notifyAllMembers(type, title, message, link) {
         console.log(`📢 Invio notifiche: tipo=${type}, titolo="${title}"`);
         
         // Ottieni tutti i membri attivi
-        const activeMembers = await query(`
+        const activeMembersResult = await query(`
             SELECT id FROM users 
             WHERE status = 'active'
         `, []);
 
-        console.log(`Trovati ${activeMembers.rows.length} membri attivi`);
+        const activeMembers = activeMembersResult.rows || [];
+        console.log(`Trovati ${activeMembers.length} membri attivi`);
         
-        if (activeMembers.rows.length === 0) {
+        if (activeMembers.length === 0) {
             console.log('⚠️ Nessun membro attivo trovato per le notifiche');
             return;
         }
 
         // Debug: mostra la struttura dei dati
-        if (activeMembers.rows.length > 0) {
-            console.log('Esempio membro:', activeMembers.rows[0]);
+        if (activeMembers.length > 0) {
+            console.log('Esempio membro (primo):', JSON.stringify(activeMembers[0], null, 2));
+            console.log('Tipo del primo membro:', typeof activeMembers[0]);
+            console.log('Chiavi del primo membro:', Object.keys(activeMembers[0] || {}));
         }
 
         // Crea una notifica per ogni membro
-        const notificationPromises = activeMembers.rows.map((member, index) => {
-            // mysql2 restituisce le righe come array o oggetti, verifica entrambi
-            const userId = member.id || member.ID || member.user_id || (Array.isArray(member) ? member[0] : null);
+        // mysql2 restituisce rows come array di oggetti con proprietà corrispondenti alle colonne
+        const notificationPromises = activeMembers.map((member, index) => {
+            // Estrai l'ID - mysql2 restituisce oggetti con proprietà corrispondenti alle colonne SELECT
+            let userId = null;
             
-            if (!userId) {
-                console.warn(`⚠️ Membro ${index} senza ID valido:`, member);
-                return Promise.resolve();
+            // Prova diversi modi per estrarre l'ID
+            if (member && typeof member === 'object') {
+                userId = member.id || member.ID || member.user_id;
             }
             
-            console.log(`Creando notifica per utente ID: ${userId}`);
+            if (!userId) {
+                console.warn(`⚠️ Membro ${index} senza ID valido. Struttura:`, JSON.stringify(member));
+                return Promise.resolve({ skipped: true });
+            }
+            
+            console.log(`📨 Creando notifica per utente ID: ${userId}`);
             return query(`
                 INSERT INTO notifications (user_id, type, title, message, link)
                 VALUES (?, ?, ?, ?, ?)
-            `, [userId, type, title, message, link || null]).catch(err => {
-                console.error(`Errore creazione notifica per utente ${userId}:`, err);
-                return null; // Continua con gli altri anche se uno fallisce
+            `, [userId, type, title, message, link || null])
+            .then(result => {
+                console.log(`✅ Notifica creata per utente ${userId}`);
+                return { success: true, userId };
+            })
+            .catch(err => {
+                console.error(`❌ Errore creazione notifica per utente ${userId}:`, err.message);
+                return { success: false, userId, error: err.message };
             });
         });
 
         const results = await Promise.all(notificationPromises);
-        const successCount = results.filter(r => r !== null).length;
-        console.log(`✅ Notifiche create: ${successCount}/${activeMembers.rows.length} membri attivi`);
+        const successCount = results.filter(r => r && r.success).length;
+        const failedCount = results.filter(r => r && !r.success && !r.skipped).length;
+        const skippedCount = results.filter(r => r && r.skipped).length;
+        
+        console.log(`✅ Notifiche create: ${successCount}/${activeMembers.length} membri attivi`);
+        if (failedCount > 0) {
+            console.log(`❌ Notifiche fallite: ${failedCount}`);
+        }
+        if (skippedCount > 0) {
+            console.log(`⚠️ Notifiche saltate (ID non valido): ${skippedCount}`);
+        }
     } catch (error) {
         console.error('❌ Errore nell\'invio delle notifiche:', error);
         console.error('Stack trace:', error.stack);
