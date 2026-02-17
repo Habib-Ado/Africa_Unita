@@ -190,7 +190,7 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
         const { id } = req.params;
         const { title, description, meeting_date, meeting_time, location, status } = req.body;
         
-        // Verifica che la riunione esista prima di aggiornarla
+        // Verifica che la riunione esista
         const existingMeeting = await query('SELECT id FROM meetings WHERE id = ?', [id]);
         if (existingMeeting.rows.length === 0) {
             return res.status(404).json({
@@ -199,7 +199,7 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
             });
         }
         
-        // Costruisci dinamicamente la query UPDATE solo per i campi forniti (non null/undefined)
+        // Costruisci la query UPDATE solo con i campi forniti (non null/undefined)
         const updateFields = [];
         const values = [];
         
@@ -217,7 +217,7 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
         }
         if (meeting_time !== undefined && meeting_time !== null) {
             updateFields.push('meeting_time = ?');
-            values.push(meeting_time || null);
+            values.push(meeting_time);
         }
         if (location !== undefined && location !== null) {
             updateFields.push('location = ?');
@@ -228,9 +228,6 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
             values.push(status);
         }
         
-        // Aggiungi sempre updated_at
-        updateFields.push('updated_at = CURRENT_TIMESTAMP');
-        
         if (updateFields.length === 0) {
             return res.status(400).json({
                 success: false,
@@ -238,6 +235,8 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
             });
         }
         
+        // Aggiungi sempre updated_at
+        updateFields.push('updated_at = CURRENT_TIMESTAMP');
         values.push(id);
         
         await query(`
@@ -255,13 +254,6 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
             WHERE m.id = ?
         `, [id]);
         
-        if (updatedMeeting.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Riunione non trovata dopo l\'aggiornamento'
-            });
-        }
-        
         res.json({
             success: true,
             message: 'Riunione aggiornata con successo',
@@ -271,7 +263,7 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
         console.error('Error updating meeting:', error);
         res.status(500).json({
             success: false,
-            message: 'Errore nell\'aggiornamento della riunione: ' + (error.message || 'Errore sconosciuto')
+            message: error.message || 'Errore nell\'aggiornamento della riunione'
         });
     }
 });
