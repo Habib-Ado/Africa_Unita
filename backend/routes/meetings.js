@@ -5,6 +5,36 @@ import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Helper function per inviare notifiche a tutti i membri attivi
+async function notifyAllMembers(type, title, message, link) {
+    try {
+        // Ottieni tutti i membri attivi
+        const activeMembers = await query(`
+            SELECT id FROM users 
+            WHERE status = 'active'
+        `, []);
+
+        if (activeMembers.rows.length === 0) {
+            console.log('Nessun membro attivo trovato per le notifiche');
+            return;
+        }
+
+        // Crea una notifica per ogni membro
+        const notificationPromises = activeMembers.rows.map(member => 
+            query(`
+                INSERT INTO notifications (user_id, type, title, message, link)
+                VALUES (?, ?, ?, ?, ?)
+            `, [member.id, type, title, message, link || null])
+        );
+
+        await Promise.all(notificationPromises);
+        console.log(`✅ Notifiche inviate a ${activeMembers.rows.length} membri attivi`);
+    } catch (error) {
+        console.error('Errore nell\'invio delle notifiche:', error);
+        // Non bloccare il processo principale se le notifiche falliscono
+    }
+}
+
 // GET /api/meetings - Ottieni tutte le riunioni (pubblico per scheduled, autenticato per altro)
 router.get('/', async (req, res) => {
     try {
@@ -159,21 +189,57 @@ router.post('/', authenticateToken, requireRole(['moderator', 'admin']), async (
             VALUES (?, ?, ?, ?, ?, ?, 'scheduled')
         `, [title, description, meeting_date, meeting_time, location, userId]);
         
-        const newMeetingId = result.rows.insertId;
+        let newMeetingId = result.rows?.insertId;
+        if (newMeetingId == null && result.rows && !Array.isArray(result.rows)) {
+            newMeetingId = result.rows.insertId;
+        }
+        if (newMeetingId == null) {
+            const idResult = await query('SELECT LAST_INSERT_ID() as id', []);
+            const row = Array.isArray(idResult.rows) ? idResult.rows[0] : idResult.rows;
+            if (row && typeof row.id !== 'undefined') newMeetingId = row.id;
+            else if (row && typeof row.ID !== 'undefined') newMeetingId = row.ID;
+        }
         
         // Crea automaticamente le presenze per tutti gli utenti attivi
         await query(`
             INSERT INTO meeting_attendance (meeting_id, user_id, status)
             SELECT ?, id, 'absent'
             FROM users
-            WHERE role IN ('user', 'moderator', 'admin', 'treasurer')
+            WHERE status = 'active'
             AND id IS NOT NULL
         `, [newMeetingId]);
+        
+        // Formatta la data per il messaggio
+        const meetingDate = new Date(meeting_date).toLocaleDateString('it-IT', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        const timeStr = meeting_time ? ` alle ${meeting_time}` : '';
+        const locationStr = location ? ` presso ${location}` : '';
+        
+        // Recupera la riunione appena creata
+        const createdMeeting = await query(`
+            SELECT m.*, 
+                   CONCAT(u.first_name, ' ', u.last_name) as created_by_name
+            FROM meetings m
+            LEFT JOIN users u ON m.created_by = u.id
+            WHERE m.id = ?
+        `, [newMeetingId]);
+        
+        // Invia notifiche a tutti i membri attivi (non bloccare la risposta se fallisce)
+        notifyAllMembers(
+            'meeting_created',
+            '📅 Nuova Riunione Programmata',
+            `È stata programmata una nuova riunione: "${title}" il ${meetingDate}${timeStr}${locationStr}.${description ? `\n\n${description}` : ''}`,
+            `/meetings`
+        ).catch(err => console.error('Errore invio notifiche:', err));
         
         res.status(201).json({
             success: true,
             message: 'Riunione creata con successo',
-            data: { meeting: result.rows[0] }
+            data: { meeting: createdMeeting.rows[0] }
         });
     } catch (error) {
         console.error('Error creating meeting:', error);
@@ -254,10 +320,30 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
             WHERE m.id = ?
         `, [id]);
         
+        const meeting = updatedMeeting.rows[0];
+        
+        // Formatta la data per il messaggio
+        const meetingDate = meeting.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString('it-IT', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        }) : '';
+        const timeStr = meeting.meeting_time ? ` alle ${meeting.meeting_time}` : '';
+        const locationStr = meeting.location ? ` presso ${meeting.location}` : '';
+        
+        // Invia notifiche a tutti i membri attivi (non bloccare la risposta se fallisce)
+        notifyAllMembers(
+            'meeting_updated',
+            '✏️ Riunione Aggiornata',
+            `La riunione "${meeting.title}" è stata aggiornata.${meetingDate ? `\n\nNuova data: ${meetingDate}${timeStr}${locationStr}` : ''}${meeting.description ? `\n\n${meeting.description}` : ''}`,
+            `/meetings`
+        ).catch(err => console.error('Errore invio notifiche:', err));
+        
         res.json({
             success: true,
             message: 'Riunione aggiornata con successo',
-            data: { meeting: updatedMeeting.rows[0] }
+            data: { meeting: meeting }
         });
     } catch (error) {
         console.error('Error updating meeting:', error);
