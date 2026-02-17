@@ -8,11 +8,11 @@ export default class extends AbstractView {
         this.meetings = [];
         this.currentMeeting = null;
         this.attendanceList = [];
-        this._listenersInitialized = false;
-        this.meetingActionHandler = null;
     }
 
     async init() {
+        if (this._initialized) return;
+        this._initialized = true;
         await this.loadMeetings();
         this.initializeEventListeners();
     }
@@ -97,34 +97,38 @@ export default class extends AbstractView {
     }
 
     initializeEventListeners() {
-        // Evita di aggiungere listener multipli
-        if (this._listenersInitialized) return;
-        
-        // Pulsante nuova riunione
+        // Pulsante nuova riunione - rimuovi listener precedente se esiste
         const newMeetingBtn = document.getElementById('new-meeting-btn');
         if (newMeetingBtn) {
-            newMeetingBtn.addEventListener('click', () => this.showNewMeetingModal());
+            if (this._newMeetingBtnHandler) {
+                newMeetingBtn.removeEventListener('click', this._newMeetingBtnHandler);
+            }
+            this._newMeetingBtnHandler = () => this.showNewMeetingModal();
+            newMeetingBtn.addEventListener('click', this._newMeetingBtnHandler);
         }
 
-        // Event delegation per azioni meeting (una sola volta)
+        // Event delegation per azioni meeting - rimuovi listener precedente se esiste
+        if (this.meetingActionHandler) {
+            document.removeEventListener('click', this.meetingActionHandler);
+        }
+        
         this.meetingActionHandler = async (e) => {
             const actionBtn = e.target.closest('.btn-meeting-action');
-            if (actionBtn) {
-                const meetingId = actionBtn.dataset.meetingId;
-                const action = actionBtn.dataset.action;
-                
-                if (action === 'attendance') {
-                    await this.showAttendanceModal(meetingId);
-                } else if (action === 'edit') {
-                    await this.showEditMeetingModal(meetingId);
-                } else if (action === 'delete') {
-                    await this.deleteMeeting(meetingId);
-                }
+            if (!actionBtn) return;
+            
+            const meetingId = actionBtn.dataset.meetingId;
+            const action = actionBtn.dataset.action;
+            
+            if (action === 'attendance') {
+                await this.showAttendanceModal(meetingId);
+            } else if (action === 'edit') {
+                await this.showEditMeetingModal(meetingId);
+            } else if (action === 'delete') {
+                await this.deleteMeeting(meetingId);
             }
         };
         
         document.addEventListener('click', this.meetingActionHandler);
-        this._listenersInitialized = true;
     }
 
     showNewMeetingModal() {
@@ -430,29 +434,41 @@ export default class extends AbstractView {
     }
 
     async afterRender() {
-        await this.init();
-        
         // Rimuovi listener precedenti se esistono per evitare duplicati
         const closeBtn = document.getElementById('close-new-meeting-modal');
         const cancelBtn = document.getElementById('cancel-new-meeting');
         const newMeetingForm = document.getElementById('new-meeting-form');
         
-        if (closeBtn && !closeBtn.dataset.listenerAdded) {
-            closeBtn.addEventListener('click', () => this.hideNewMeetingModal());
-            closeBtn.dataset.listenerAdded = 'true';
+        if (closeBtn) {
+            if (this._closeBtnHandler) {
+                closeBtn.removeEventListener('click', this._closeBtnHandler);
+            }
+            this._closeBtnHandler = () => this.hideNewMeetingModal();
+            closeBtn.addEventListener('click', this._closeBtnHandler);
         }
-        if (cancelBtn && !cancelBtn.dataset.listenerAdded) {
-            cancelBtn.addEventListener('click', () => this.hideNewMeetingModal());
-            cancelBtn.dataset.listenerAdded = 'true';
+        if (cancelBtn) {
+            if (this._cancelBtnHandler) {
+                cancelBtn.removeEventListener('click', this._cancelBtnHandler);
+            }
+            this._cancelBtnHandler = () => this.hideNewMeetingModal();
+            cancelBtn.addEventListener('click', this._cancelBtnHandler);
         }
         
-        // Event listener per il form nuova riunione (una sola volta)
-        if (newMeetingForm && !newMeetingForm.dataset.listenerAdded) {
-            newMeetingForm.addEventListener('submit', async (e) => {
+        // Event listener per il form nuova riunione (rimuovi vecchio listener se esiste)
+        if (newMeetingForm) {
+            if (this._formSubmitHandler) {
+                newMeetingForm.removeEventListener('submit', this._formSubmitHandler);
+            }
+            this._formSubmitHandler = async (e) => {
                 e.preventDefault();
                 await this.createMeeting(e);
-            });
-            newMeetingForm.dataset.listenerAdded = 'true';
+            };
+            newMeetingForm.addEventListener('submit', this._formSubmitHandler);
+        }
+        
+        // Inizializza solo se non già fatto
+        if (!this._initialized) {
+            await this.init();
         }
     }
 }
