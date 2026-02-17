@@ -207,6 +207,125 @@ export default class extends AbstractView {
         }
     }
 
+    async showEditMeetingModal(meetingId) {
+        try {
+            const response = await apiFetch(`/api/meetings/${meetingId}`);
+            if (response.ok) {
+                const data = await response.json();
+                const meeting = data.data.meeting;
+                
+                // Verifica che il modal esista
+                const modal = document.getElementById('edit-meeting-modal');
+                if (!modal) {
+                    console.error('Modal di modifica non trovato nel DOM');
+                    alert('Errore: modal di modifica non trovato. Ricarica la pagina.');
+                    return;
+                }
+                
+                // Popola il form con i dati della riunione
+                const form = document.getElementById('edit-meeting-form');
+                if (!form) {
+                    console.error('Form di modifica non trovato');
+                    alert('Errore: form di modifica non trovato');
+                    return;
+                }
+                
+                const idField = document.getElementById('edit-meeting-id');
+                const titleField = document.getElementById('edit-meeting-title');
+                const descriptionField = document.getElementById('edit-meeting-description');
+                const dateField = document.getElementById('edit-meeting-date');
+                const timeField = document.getElementById('edit-meeting-time');
+                const locationField = document.getElementById('edit-meeting-location');
+                
+                if (idField) idField.value = meeting.id || '';
+                if (titleField) titleField.value = meeting.title || '';
+                if (descriptionField) descriptionField.value = meeting.description || '';
+                
+                // Formatta la data (potrebbe essere in formato ISO o YYYY-MM-DD)
+                let meetingDate = '';
+                if (meeting.meeting_date) {
+                    if (meeting.meeting_date.includes('T')) {
+                        meetingDate = meeting.meeting_date.split('T')[0];
+                    } else if (meeting.meeting_date.includes(' ')) {
+                        meetingDate = meeting.meeting_date.split(' ')[0];
+                    } else {
+                        meetingDate = meeting.meeting_date;
+                    }
+                }
+                if (dateField) dateField.value = meetingDate;
+                if (timeField) timeField.value = meeting.meeting_time || '';
+                if (locationField) locationField.value = meeting.location || '';
+                
+                // Mostra il modal
+                modal.style.display = 'block';
+                modal.classList.add('show');
+            } else {
+                const error = await response.json();
+                alert('Errore: ' + (error.message || 'Impossibile caricare la riunione'));
+            }
+        } catch (error) {
+            console.error('Error loading meeting for edit:', error);
+            alert('Errore nel caricamento della riunione');
+        }
+    }
+
+    hideEditMeetingModal() {
+        const modal = document.getElementById('edit-meeting-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('show');
+        }
+    }
+
+    async updateMeeting(e) {
+        if (this._updatingMeeting) return;
+        this._updatingMeeting = true;
+        
+        const formData = new FormData(e.target);
+        const meetingId = formData.get('meeting_id');
+        const data = {
+            title: formData.get('title'),
+            description: formData.get('description'),
+            meeting_date: formData.get('meeting_date'),
+            meeting_time: formData.get('meeting_time'),
+            location: formData.get('location')
+        };
+
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn?.innerHTML;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Aggiornamento...';
+        }
+
+        try {
+            const response = await apiFetch(`/api/meetings/${meetingId}`, {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                alert('Riunione aggiornata con successo!');
+                this.hideEditMeetingModal();
+                e.target.reset();
+                await this.loadMeetings();
+            } else {
+                const error = await response.json();
+                alert('Errore: ' + (error.message || 'Impossibile aggiornare la riunione'));
+            }
+        } catch (error) {
+            console.error('Error updating meeting:', error);
+            alert('Errore nell\'aggiornamento della riunione');
+        } finally {
+            this._updatingMeeting = false;
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                if (originalText) submitBtn.innerHTML = originalText;
+            }
+        }
+    }
+
+
     async showAttendanceModal(meetingId) {
         try {
             const response = await apiFetch(`/api/meetings/${meetingId}`);
@@ -451,6 +570,51 @@ export default class extends AbstractView {
                         </div>
                     </div>
                 </div>
+
+                <!-- Modal Modifica Riunione -->
+                <div class="modal" id="edit-meeting-modal" tabindex="-1" style="display: none;">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content modern-modal">
+                            <div class="modal-header gradient-header">
+                                <h5 class="modal-title"><i class="fas fa-edit"></i> Modifica Riunione</h5>
+                                <button type="button" class="btn-close btn-close-white" id="close-edit-meeting-modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="edit-meeting-form">
+                                    <input type="hidden" name="meeting_id" id="edit-meeting-id">
+                                    <div class="mb-3">
+                                        <label class="form-label">Titolo *</label>
+                                        <input type="text" class="form-control modern-input" name="title" id="edit-meeting-title" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Descrizione</label>
+                                        <textarea class="form-control modern-input" name="description" id="edit-meeting-description" rows="3"></textarea>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Data *</label>
+                                            <input type="date" class="form-control modern-input" name="meeting_date" id="edit-meeting-date" required>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Ora</label>
+                                            <input type="time" class="form-control modern-input" name="meeting_time" id="edit-meeting-time">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Luogo</label>
+                                        <input type="text" class="form-control modern-input" name="location" id="edit-meeting-location" placeholder="Es: Sede associazione, Via Roma 123">
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" id="cancel-edit-meeting">Annulla</button>
+                                <button type="submit" form="edit-meeting-form" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-save"></i> Salva Modifiche
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -486,6 +650,27 @@ export default class extends AbstractView {
                 await this.createMeeting(e);
             });
             newMeetingForm.dataset.listenerAdded = 'true';
+        }
+
+        // Event listeners per il modal modifica riunione
+        const closeEditBtn = document.getElementById('close-edit-meeting-modal');
+        const cancelEditBtn = document.getElementById('cancel-edit-meeting');
+        const editMeetingForm = document.getElementById('edit-meeting-form');
+        
+        if (closeEditBtn && !closeEditBtn.dataset.listenerAdded) {
+            closeEditBtn.addEventListener('click', () => this.hideEditMeetingModal());
+            closeEditBtn.dataset.listenerAdded = 'true';
+        }
+        if (cancelEditBtn && !cancelEditBtn.dataset.listenerAdded) {
+            cancelEditBtn.addEventListener('click', () => this.hideEditMeetingModal());
+            cancelEditBtn.dataset.listenerAdded = 'true';
+        }
+        if (editMeetingForm && !editMeetingForm.dataset.listenerAdded) {
+            editMeetingForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.updateMeeting(e);
+            });
+            editMeetingForm.dataset.listenerAdded = 'true';
         }
     }
 }
