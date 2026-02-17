@@ -11,14 +11,14 @@ class EmailService {
     initializeTransporter() {
         // Configurazione per Gmail (può essere cambiata per altri provider)
         // Supporta sia EMAIL_PASS che EMAIL_PASSWORD per compatibilità
-        const emailPass = process.env.EMAIL_PASSWORD || process.env.EMAIL_PASS || 'your-app-password';
+        const emailPass = process.env.EMAIL_PASSWORD;
         // Rimuovi eventuali spazi dalla password (le App Password di Gmail non devono avere spazi)
         const cleanPassword = emailPass.replace(/\s+/g, '');
         
         this.transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
-                user: process.env.EMAIL_USER || 'your-email@gmail.com',
+                user: process.env.EMAIL_USER,
                 pass: cleanPassword
             }
         });
