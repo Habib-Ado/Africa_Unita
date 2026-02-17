@@ -11,6 +11,14 @@ async function notifyAllMembers(type, title, message, link) {
     try {
         console.log(`📧 Invio notifiche email: tipo=${type}, titolo="${title}"`);
         
+        // Verifica che le credenziali email siano configurate
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+            console.error('❌ Credenziali email non configurate! Imposta EMAIL_USER e EMAIL_PASS nel file .env');
+            console.error('   EMAIL_USER presente:', !!process.env.EMAIL_USER);
+            console.error('   EMAIL_PASS presente:', !!process.env.EMAIL_PASS);
+            return;
+        }
+        
         // Ottieni tutti i membri attivi con email
         const activeMembersResult = await query(`
             SELECT id, email, first_name, last_name, username 
@@ -93,23 +101,13 @@ async function notifyAllMembers(type, title, message, link) {
                     </html>
                 `;
 
-                // Invia l'email usando il transporter di nodemailer direttamente
-                const nodemailer = (await import('nodemailer')).default;
-                const transporter = nodemailer.createTransport({
-                    service: 'gmail',
-                    auth: {
-                        user: process.env.EMAIL_USER || 'your-email@gmail.com',
-                        pass: process.env.EMAIL_PASS || 'your-app-password'
-                    }
-                });
-
-                await transporter.sendMail({
-                    from: process.env.EMAIL_USER || 'noreply@africaunita.it',
-                    to: userEmail,
-                    subject: title,
-                    html: emailHtml
-                });
-
+                // Invia l'email usando il servizio email
+                const emailSent = await emailService.sendEmail(userEmail, title, emailHtml);
+                
+                if (!emailSent) {
+                    throw new Error('Invio email fallito');
+                }
+                
                 console.log(`✅ Email inviata a: ${userEmail} (${userName})`);
                 
                 // Salva anche nel database per riferimento
@@ -346,7 +344,10 @@ router.post('/', authenticateToken, requireRole(['moderator', 'admin']), async (
             '📅 Nuova Riunione Programmata',
             `È stata programmata una nuova riunione: "${title}" il ${meetingDate}${timeStr}${locationStr}.${description ? `\n\n${description}` : ''}`,
             `/meetings`
-        ).catch(err => console.error('Errore invio notifiche:', err));
+        ).catch(err => {
+            console.error('❌ Errore nell\'invio delle notifiche email:', err);
+            console.error('Stack:', err.stack);
+        });
         
         res.status(201).json({
             success: true,
@@ -450,7 +451,10 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
             '✏️ Riunione Aggiornata',
             `La riunione "${meeting.title}" è stata aggiornata.${meetingDate ? `\n\nNuova data: ${meetingDate}${timeStr}${locationStr}` : ''}${meeting.description ? `\n\n${meeting.description}` : ''}`,
             `/meetings`
-        ).catch(err => console.error('Errore invio notifiche:', err));
+        ).catch(err => {
+            console.error('❌ Errore nell\'invio delle notifiche email:', err);
+            console.error('Stack:', err.stack);
+        });
         
         res.json({
             success: true,

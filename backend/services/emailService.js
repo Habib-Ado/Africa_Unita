@@ -244,6 +244,53 @@ class EmailService {
             return false;
         }
     }
+
+    // Metodo generico per inviare email
+    async sendEmail(to, subject, html) {
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+            console.error('❌ Credenziali email non configurate (EMAIL_USER o EMAIL_PASS mancanti)');
+            console.error('   Configura EMAIL_USER e EMAIL_PASS nel file .env del backend');
+            return false;
+        }
+
+        // Verifica che le credenziali non siano i valori di default
+        if (process.env.EMAIL_USER === 'your-email@gmail.com' || process.env.EMAIL_PASS === 'your-app-password') {
+            console.error('❌ Credenziali email non configurate correttamente');
+            console.error('   Sostituisci i valori di default con le tue credenziali reali nel file .env');
+            return false;
+        }
+
+        if (!this.transporter) {
+            console.error('❌ Transporter email non inizializzato');
+            return false;
+        }
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: to,
+            subject: subject,
+            html: html
+        };
+
+        try {
+            await this.transporter.sendMail(mailOptions);
+            console.log(`✅ Email inviata a: ${to}`);
+            return true;
+        } catch (error) {
+            console.error(`❌ Errore invio email a ${to}:`, error.message);
+            if (error.code === 'EAUTH') {
+                console.error('⚠️ Errore autenticazione email - verifica EMAIL_USER e EMAIL_PASS nel .env');
+                console.error('   Per Gmail, usa una "App Password" invece della password normale');
+                console.error('   Vai su: https://myaccount.google.com/apppasswords');
+            } else if (error.code === 'ECONNECTION') {
+                console.error('⚠️ Errore di connessione al server email');
+            } else {
+                console.error('   Codice errore:', error.code);
+                console.error('   Dettagli:', error);
+            }
+            return false;
+        }
+    }
 }
 
 export default new EmailService();
