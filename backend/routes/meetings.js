@@ -8,29 +8,56 @@ const router = express.Router();
 // Helper function per inviare notifiche a tutti i membri attivi
 async function notifyAllMembers(type, title, message, link) {
     try {
+        console.log(`📢 Invio notifiche: tipo=${type}, titolo="${title}"`);
+        
         // Ottieni tutti i membri attivi
         const activeMembers = await query(`
             SELECT id FROM users 
             WHERE status = 'active'
         `, []);
 
+        console.log(`👥 Membri attivi trovati: ${activeMembers.rows.length}`);
+
         if (activeMembers.rows.length === 0) {
-            console.log('Nessun membro attivo trovato per le notifiche');
+            console.log('⚠️ Nessun membro attivo trovato per le notifiche');
+            return;
+        }
+
+        // Verifica la struttura dei dati
+        if (!activeMembers.rows || !Array.isArray(activeMembers.rows)) {
+            console.error('❌ Formato dati membri non valido:', activeMembers);
             return;
         }
 
         // Crea una notifica per ogni membro
-        const notificationPromises = activeMembers.rows.map(member => 
-            query(`
-                INSERT INTO notifications (user_id, type, title, message, link)
-                VALUES (?, ?, ?, ?, ?)
-            `, [member.id, type, title, message, link || null])
-        );
+        let successCount = 0;
+        let errorCount = 0;
 
-        await Promise.all(notificationPromises);
-        console.log(`✅ Notifiche inviate a ${activeMembers.rows.length} membri attivi`);
+        for (const member of activeMembers.rows) {
+            try {
+                const memberId = member.id || member.ID || member.user_id;
+                if (!memberId) {
+                    console.error('❌ ID membro non trovato:', member);
+                    errorCount++;
+                    continue;
+                }
+
+                await query(`
+                    INSERT INTO notifications (user_id, type, title, message, link)
+                    VALUES (?, ?, ?, ?, ?)
+                `, [memberId, type, title, message, link || null]);
+                
+                successCount++;
+            } catch (err) {
+                console.error(`❌ Errore creazione notifica per utente ${member.id}:`, err.message);
+                errorCount++;
+            }
+        }
+
+        console.log(`✅ Notifiche create: ${successCount} successi, ${errorCount} errori su ${activeMembers.rows.length} membri`);
     } catch (error) {
-        console.error('Errore nell\'invio delle notifiche:', error);
+        console.error('❌ Errore nell\'invio delle notifiche:', error);
+        console.error('Stack:', error.stack);
         // Non bloccare il processo principale se le notifiche falliscono
     }
 }
@@ -234,7 +261,9 @@ router.post('/', authenticateToken, requireRole(['moderator', 'admin']), async (
             '📅 Nuova Riunione Programmata',
             `È stata programmata una nuova riunione: "${title}" il ${meetingDate}${timeStr}${locationStr}.${description ? `\n\n${description}` : ''}`,
             `/meetings`
-        ).catch(err => console.error('Errore invio notifiche:', err));
+        ).catch(err => {
+            console.error('❌ Errore invio notifiche (non bloccante):', err);
+        });
         
         res.status(201).json({
             success: true,
@@ -338,7 +367,9 @@ router.put('/:id', authenticateToken, requireRole(['moderator', 'admin']), async
             '✏️ Riunione Aggiornata',
             `La riunione "${meeting.title}" è stata aggiornata.${meetingDate ? `\n\nNuova data: ${meetingDate}${timeStr}${locationStr}` : ''}${meeting.description ? `\n\n${meeting.description}` : ''}`,
             `/meetings`
-        ).catch(err => console.error('Errore invio notifiche:', err));
+        ).catch(err => {
+            console.error('❌ Errore invio notifiche (non bloccante):', err);
+        });
         
         res.json({
             success: true,
