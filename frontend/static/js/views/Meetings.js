@@ -364,7 +364,7 @@ export default class extends AbstractView {
                                     <span class="member-name-compact">
                                         ${att.first_name} ${att.last_name}
                                     </span>
-                                    <span class="member-username-compact">@${att.username}</span>
+                                    ${att.username ? `<span class="member-username-compact">@${att.username}</span>` : ''}
                                 </div>
                                 <div class="attendance-controls">
                                     <input type="hidden" name="user_id_${att.user_id}" value="${att.user_id}">
