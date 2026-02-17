@@ -12,7 +12,7 @@ export default class extends AbstractView {
 
     async init() {
         await this.loadMeetings();
-        this.initializeEventListeners();
+        // Non chiamare initializeEventListeners qui - verrà chiamato in afterRender
     }
 
     async loadMeetings() {
@@ -95,10 +95,11 @@ export default class extends AbstractView {
     }
 
     initializeEventListeners() {
-        // Pulsante nuova riunione
+        // Pulsante nuova riunione (rimuovi listener precedente se esiste)
         const newMeetingBtn = document.getElementById('new-meeting-btn');
         if (newMeetingBtn) {
-            newMeetingBtn.addEventListener('click', () => this.showNewMeetingModal());
+            newMeetingBtn.replaceWith(newMeetingBtn.cloneNode(true)); // Rimuove tutti i listener
+            document.getElementById('new-meeting-btn').addEventListener('click', () => this.showNewMeetingModal());
         }
 
         // Event delegation per azioni meeting
@@ -143,33 +144,52 @@ export default class extends AbstractView {
     }
 
     async createMeeting(e) {
-        const formData = new FormData(e.target);
-        const data = {
-            title: formData.get('title'),
-            description: formData.get('description'),
-            meeting_date: formData.get('meeting_date'),
-            meeting_time: formData.get('meeting_time'),
-            location: formData.get('location')
-        };
+        if (this._creatingMeeting) return;
+        
+        e.preventDefault();
+        const form = e.target;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        
+        this._creatingMeeting = true;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creazione...';
+            
+            try {
+                const formData = new FormData(form);
+                const data = {
+                    title: formData.get('title'),
+                    description: formData.get('description'),
+                    meeting_date: formData.get('meeting_date'),
+                    meeting_time: formData.get('meeting_time'),
+                    location: formData.get('location')
+                };
 
-        try {
-            const response = await apiFetch('/api/meetings', {
-                method: 'POST',
-                body: JSON.stringify(data)
-            });
+                const response = await apiFetch('/api/meetings', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
 
-            if (response.ok) {
-                alert('Riunione creata con successo!');
-                this.hideNewMeetingModal();
-                e.target.reset();
-                await this.loadMeetings();
-            } else {
-                const error = await response.json();
-                alert('Errore: ' + (error.message || 'Impossibile creare la riunione'));
+                if (response.ok) {
+                    alert('Riunione creata con successo!');
+                    this.hideNewMeetingModal();
+                    form.reset();
+                    await this.loadMeetings();
+                } else {
+                    const error = await response.json();
+                    alert('Errore: ' + (error.message || 'Impossibile creare la riunione'));
+                }
+            } catch (error) {
+                console.error('Error creating meeting:', error);
+                alert('Errore nella creazione della riunione');
+            } finally {
+                this._creatingMeeting = false;
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
             }
-        } catch (error) {
-            console.error('Error creating meeting:', error);
-            alert('Errore nella creazione della riunione');
         }
     }
 
@@ -307,8 +327,11 @@ export default class extends AbstractView {
     }
 
     async deleteMeeting(meetingId) {
+        if (this._deletingMeeting === meetingId) return;
+        
         if (!confirm('Sei sicuro di voler eliminare questa riunione?')) return;
 
+        this._deletingMeeting = meetingId;
         try {
             const response = await apiFetch(`/api/meetings/${meetingId}`, {
                 method: 'DELETE'
@@ -324,6 +347,8 @@ export default class extends AbstractView {
         } catch (error) {
             console.error('Error deleting meeting:', error);
             alert('Errore nell\'eliminazione della riunione');
+        } finally {
+            this._deletingMeeting = null;
         }
     }
 
@@ -408,17 +433,28 @@ export default class extends AbstractView {
     }
 
     async afterRender() {
-        await this.init();
+        // Carica i meeting e inizializza i listener
+        await this.loadMeetings();
+        this.initializeEventListeners();
         
-        // Event listeners per chiudere modal nuova riunione
-        document.getElementById('close-new-meeting-modal')?.addEventListener('click', () => this.hideNewMeetingModal());
-        document.getElementById('cancel-new-meeting')?.addEventListener('click', () => this.hideNewMeetingModal());
+        // Event listeners per chiudere modal nuova riunione (rimuovi precedenti se esistono)
+        const closeBtn = document.getElementById('close-new-meeting-modal');
+        const cancelBtn = document.getElementById('cancel-new-meeting');
+        if (closeBtn) {
+            closeBtn.replaceWith(closeBtn.cloneNode(true));
+            document.getElementById('close-new-meeting-modal')?.addEventListener('click', () => this.hideNewMeetingModal());
+        }
+        if (cancelBtn) {
+            cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+            document.getElementById('cancel-new-meeting')?.addEventListener('click', () => this.hideNewMeetingModal());
+        }
         
-        // Event listener per il form nuova riunione (una sola volta qui)
+        // Event listener per il form nuova riunione (rimuovi precedente se esiste)
         const newMeetingForm = document.getElementById('new-meeting-form');
         if (newMeetingForm) {
-            newMeetingForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
+            newMeetingForm.replaceWith(newMeetingForm.cloneNode(true));
+            const form = document.getElementById('new-meeting-form');
+            form.addEventListener('submit', async (e) => {
                 await this.createMeeting(e);
             });
         }
