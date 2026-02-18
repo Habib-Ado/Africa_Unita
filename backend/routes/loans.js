@@ -344,8 +344,8 @@ router.put('/:id/reject', authenticateToken, requireRole('treasurer', 'admin'), 
         }
 
         const updateResult = await query(
-            `UPDATE loans SET status = 'rejected', rejected_by = ?, rejected_at = CURRENT_TIMESTAMP, rejection_notes = ? WHERE id = ? AND status = 'pending'`,
-            [treasurerId, notes || null, loanId]
+            `UPDATE loans SET status = 'rejected', notes = ? WHERE id = ? AND status = 'pending'`,
+            [notes || null, loanId]
         );
         const affected = updateResult.rows && (updateResult.rows.affectedRows != null ? updateResult.rows.affectedRows : 0);
         if (Number(affected) === 0) {
