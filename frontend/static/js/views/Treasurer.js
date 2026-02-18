@@ -435,7 +435,7 @@ export default class extends AbstractView {
             });
         }
 
-        // Event listener per filtri quote
+        // Event listener per filtri quote (una sola volta)
         const searchFees = document.getElementById('search-fees');
         const filterStatus = document.getElementById('filter-status');
         const filterMonth = document.getElementById('filter-month');
@@ -450,7 +450,7 @@ export default class extends AbstractView {
             filterMonth.addEventListener('change', () => this.filterFees());
         }
 
-        // Event listener per filtri transazioni
+        // Event listener per filtri transazioni (una sola volta)
         const searchTransactions = document.getElementById('search-transactions');
         const filterTransactionType = document.getElementById('filter-transaction-type');
         const filterTransactionDate = document.getElementById('filter-transaction-date');
@@ -465,7 +465,7 @@ export default class extends AbstractView {
             filterTransactionDate.addEventListener('change', () => this.filterTransactions());
         }
 
-        // Event listener per filtri prestiti
+        // Event listener per filtri prestiti (una sola volta)
         const searchLoans = document.getElementById('search-loans');
         const filterLoanStatus = document.getElementById('filter-loan-status');
         
