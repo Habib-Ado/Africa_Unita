@@ -100,12 +100,13 @@ class EmailService {
     }
 
     async sendAdminNotificationEmail(newUser) {
-        const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',') : ['admin@africaunita.it'];
+        const adminEmail = 'africaunita02@gmail.com';
         const adminUrl = `${process.env.CORS_ORIGIN || 'http://localhost:3000'}/admin/users`;
         
         const mailOptions = {
-            from: process.env.EMAIL_USER || 'noreply@africaunita.it',
-            to: adminEmails.join(','),
+            from: `${newUser.first_name} ${newUser.last_name} via Africa Unita <${process.env.EMAIL_USER || 'noreply@africaunita.it'}>`,
+            replyTo: newUser.email,
+            to: adminEmail,
             subject: '🔔 Africa Unita - Nuova registrazione da approvare',
             html: `
                 <!DOCTYPE html>
@@ -176,7 +177,7 @@ class EmailService {
         }
     }
 
-    async sendApprovalEmail(userEmail, userName, approved) {
+    async sendApprovalEmail(userEmail, userName, approved, loginUsername = null, loginPassword = null) {
         const subject = approved ? '✅ Africa Unita - Account approvato!' : '❌ Africa Unita - Account non approvato';
         const message = approved 
             ? 'Il tuo account è stato approvato! Puoi ora accedere alla piattaforma Africa Unita.'
@@ -202,6 +203,31 @@ class EmailService {
                             text-align: center; 
                         }
                         .content { padding: 30px; background: #f9f9f9; }
+                        .credentials { 
+                            background: #fff; 
+                            padding: 20px; 
+                            border-left: 4px solid #2c5530; 
+                            margin: 20px 0;
+                            border-radius: 5px;
+                        }
+                        .credential-item { 
+                            margin: 15px 0; 
+                            padding: 10px; 
+                            background: #f5f5f5; 
+                            border-radius: 3px;
+                        }
+                        .credential-label { font-weight: bold; color: #2c5530; }
+                        .credential-value { 
+                            font-family: monospace; 
+                            font-size: 16px; 
+                            color: #333; 
+                            padding: 5px;
+                            background: #fff;
+                            border: 1px solid #ddd;
+                            border-radius: 3px;
+                            display: inline-block;
+                            min-width: 200px;
+                        }
                         .button { 
                             display: inline-block; 
                             background: ${approved ? '#2c5530' : '#d32f2f'}; 
@@ -210,6 +236,13 @@ class EmailService {
                             text-decoration: none; 
                             border-radius: 5px; 
                             margin: 20px 0;
+                        }
+                        .warning { 
+                            background: #fff3cd; 
+                            border-left: 4px solid #ffc107; 
+                            padding: 15px; 
+                            margin: 20px 0;
+                            border-radius: 3px;
                         }
                         .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
                     </style>
@@ -224,9 +257,27 @@ class EmailService {
                             <h2>Ciao ${userName}!</h2>
                             <p>${message}</p>
                             
-                            ${approved ? `
+                            ${approved && loginUsername && loginPassword ? `
+                                <div class="credentials">
+                                    <h3>🔐 Le tue credenziali di accesso:</h3>
+                                    <div class="credential-item">
+                                        <span class="credential-label">Username (Email di accesso):</span><br>
+                                        <span class="credential-value">${loginUsername}</span>
+                                    </div>
+                                    <div class="credential-item">
+                                        <span class="credential-label">Password:</span><br>
+                                        <span class="credential-value">${loginPassword}</span>
+                                    </div>
+                                    <p><small><strong>Nota:</strong> Usa questo username per accedere al sito. L'email ${userEmail} viene utilizzata solo per ricevere notifiche.</small></p>
+                                </div>
+                                <div class="warning">
+                                    <strong>⚠️ Importante:</strong> Questa è la password per il tuo primo accesso. Ti consigliamo di cambiarla dopo il primo login per motivi di sicurezza.
+                                </div>
                                 <p>Puoi ora accedere alla piattaforma:</p>
-                                <a href="${process.env.CORS_ORIGIN || 'http://localhost:3000'}" class="button">🌍 Accedi a Africa Unita</a>
+                                <a href="${process.env.CORS_ORIGIN || 'http://localhost:3000'}/login" class="button">🌍 Accedi a Africa Unita</a>
+                            ` : approved ? `
+                                <p>Puoi ora accedere alla piattaforma:</p>
+                                <a href="${process.env.CORS_ORIGIN || 'http://localhost:3000'}/login" class="button">🌍 Accedi a Africa Unita</a>
                             ` : `
                                 <p>Se hai domande, contatta l'amministrazione.</p>
                             `}

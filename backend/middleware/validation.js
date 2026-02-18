@@ -56,7 +56,7 @@ export const validateLogin = [
     body('email')
         .trim()
         .isEmail()
-        .withMessage('Email non valida')
+        .withMessage('Username (email di accesso) non valido')
         .normalizeEmail(),
     body('password')
         .notEmpty()

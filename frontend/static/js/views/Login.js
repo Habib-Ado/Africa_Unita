@@ -27,9 +27,9 @@ export default class extends AbstractView {
         if (emailInput) {
             emailInput.addEventListener('input', () => {
                 if (!emailInput.value) {
-                    this.showError('email', 'L\'email è obbligatoria');
+                    this.showError('email', 'Lo username è obbligatorio');
                 } else if (!emailInput.value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-                    this.showError('email', 'Inserisci un indirizzo email valido');
+                    this.showError('email', 'Inserisci un username valido (formato email)');
                 } else {
                     this.clearError('email');
                 }
@@ -53,7 +53,7 @@ export default class extends AbstractView {
                 
                 // Validazione prima dell'invio
                 if (!emailInput.value || !passwordInput.value) {
-                    if (!emailInput.value) this.showError('email', 'L\'email è obbligatoria');
+                    if (!emailInput.value) this.showError('email', 'Lo username è obbligatorio');
                     if (!passwordInput.value) this.showError('password', 'La password è obbligatoria');
                     return;
                 }
@@ -332,8 +332,8 @@ export default class extends AbstractView {
 
                             <form id="login-form" novalidate>
                                 <div class="form-floating mb-3">
-                                    <input type="email" autocomplete="off" class="form-control" id="email" name="email" placeholder="Email" required>
-                                    <label for="email">Email</label>
+                                    <input type="email" autocomplete="off" class="form-control" id="email" name="email" placeholder="Username (es: mtoure@africaunita.it)" required>
+                                    <label for="email">Username (Email di accesso)</label>
                                     <div class="invalid-feedback" id="emailError"></div>
                                 </div>
 

@@ -73,11 +73,11 @@ router.post('/register', validateRegister, async (req, res) => {
 // POST /api/auth/login - Login utente
 router.post('/login', validateLogin, async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email, password } = req.body; // 'email' nel body è in realtà lo username (email di accesso)
 
-        // Trova utente per email
+        // Trova utente per username (che è l'email di accesso nel formato @africaunita.it)
         const result = await query(
-            'SELECT id, uuid, username, email, password_hash, first_name, last_name, role, status FROM users WHERE email = ?',
+            'SELECT id, uuid, username, email, password_hash, first_name, last_name, role, status FROM users WHERE username = ?',
             [email]
         );
 

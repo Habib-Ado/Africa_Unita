@@ -1,5 +1,7 @@
 // Admin Routes - Gestione approvazione utenti
 import express from 'express';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { query } from '../database/db.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import emailService from '../services/emailService.js';
@@ -64,17 +66,76 @@ router.post('/approve-user/:userId', async (req, res) => {
         const user = userResult.rows[0];
         const newStatus = approved ? 'active' : 'blocked';
 
-        // Aggiorna status utente
-        await query(
-            'UPDATE users SET status = ? WHERE id = ?',
-            [newStatus, userId]
-        );
+        let loginUsername = null;
+        let loginPassword = null;
 
-        // Invia email di notifica all'utente
+        if (approved) {
+            // Genera username: prima lettera del nome + cognome@africaunita.it (lowercase, senza spazi)
+            const firstLetter = user.first_name ? user.first_name.charAt(0).toLowerCase() : '';
+            const lastName = user.last_name ? user.last_name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '') : '';
+            let baseUsername = `${firstLetter}${lastName}@africaunita.it`;
+            
+            // Verifica se lo username esiste già e aggiungi un numero se necessario
+            let counter = 1;
+            loginUsername = baseUsername;
+            while (true) {
+                const existingUsername = await query(
+                    'SELECT id FROM users WHERE username = ? AND id != ?',
+                    [loginUsername, userId]
+                );
+                if (existingUsername.rows.length === 0) {
+                    break; // Username disponibile
+                }
+                // Se esiste già, aggiungi un numero prima di @africaunita.it
+                loginUsername = `${firstLetter}${lastName}${counter}@africaunita.it`;
+                counter++;
+            }
+
+            // Genera password temporanea sicura (12 caratteri: lettere maiuscole, minuscole, numeri)
+            const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+            const numbers = '0123456789';
+            const allChars = uppercase + lowercase + numbers;
+            
+            let password = '';
+            // Assicura almeno un carattere di ogni tipo
+            password += uppercase[Math.floor(Math.random() * uppercase.length)];
+            password += lowercase[Math.floor(Math.random() * lowercase.length)];
+            password += numbers[Math.floor(Math.random() * numbers.length)];
+            
+            // Completa la password con caratteri casuali
+            for (let i = password.length; i < 12; i++) {
+                password += allChars[Math.floor(Math.random() * allChars.length)];
+            }
+            
+            // Mescola la password
+            loginPassword = password.split('').sort(() => Math.random() - 0.5).join('');
+
+            // Hash della password
+            const saltRounds = 12;
+            const password_hash = await bcrypt.hash(loginPassword, saltRounds);
+
+            // Aggiorna utente con nuovo username (email di accesso), password e status
+            // L'email originale viene mantenuta per le notifiche
+            await query(
+                'UPDATE users SET username = ?, password_hash = ?, status = ? WHERE id = ?',
+                [loginUsername, password_hash, newStatus, userId]
+            );
+        } else {
+            // Se non approvato, aggiorna solo lo status
+            await query(
+                'UPDATE users SET status = ? WHERE id = ?',
+                [newStatus, userId]
+            );
+        }
+
+        // Invia email di notifica all'utente (usa sempre l'email originale per le notifiche)
         await emailService.sendApprovalEmail(
             user.email,
             `${user.first_name} ${user.last_name}`,
-            approved
+            approved,
+            loginUsername,
+            loginPassword
         );
 
         res.status(200).json({
@@ -129,17 +190,73 @@ router.post('/bulk-approve', async (req, res) => {
                 if (userResult.rows.length > 0) {
                     const user = userResult.rows[0];
 
-                    // Aggiorna status
-                    await query(
-                        'UPDATE users SET status = ? WHERE id = ?',
-                        [newStatus, userId]
-                    );
+                    let loginUsername = null;
+                    let loginPassword = null;
 
-                    // Invia email
+                    if (approved) {
+                        // Genera username: prima lettera del nome + cognome@africaunita.it (lowercase, senza spazi)
+                        const firstLetter = user.first_name ? user.first_name.charAt(0).toLowerCase() : '';
+                        const lastName = user.last_name ? user.last_name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '') : '';
+                        let baseUsername = `${firstLetter}${lastName}@africaunita.it`;
+                        
+                        // Verifica se lo username esiste già e aggiungi un numero se necessario
+                        let counter = 1;
+                        loginUsername = baseUsername;
+                        while (true) {
+                            const existingUsername = await query(
+                                'SELECT id FROM users WHERE username = ? AND id != ?',
+                                [loginUsername, userId]
+                            );
+                            if (existingUsername.rows.length === 0) {
+                                break; // Username disponibile
+                            }
+                            // Se esiste già, aggiungi un numero prima di @africaunita.it
+                            loginUsername = `${firstLetter}${lastName}${counter}@africaunita.it`;
+                            counter++;
+                        }
+
+                        // Genera password temporanea sicura (12 caratteri)
+                        const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                        const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+                        const numbers = '0123456789';
+                        const allChars = uppercase + lowercase + numbers;
+                        
+                        let password = '';
+                        password += uppercase[Math.floor(Math.random() * uppercase.length)];
+                        password += lowercase[Math.floor(Math.random() * lowercase.length)];
+                        password += numbers[Math.floor(Math.random() * numbers.length)];
+                        
+                        for (let i = password.length; i < 12; i++) {
+                            password += allChars[Math.floor(Math.random() * allChars.length)];
+                        }
+                        
+                        loginPassword = password.split('').sort(() => Math.random() - 0.5).join('');
+
+                        // Hash della password
+                        const saltRounds = 12;
+                        const password_hash = await bcrypt.hash(loginPassword, saltRounds);
+
+                        // Aggiorna utente con nuovo username (email di accesso), password e status
+                        // L'email originale viene mantenuta per le notifiche
+                        await query(
+                            'UPDATE users SET username = ?, password_hash = ?, status = ? WHERE id = ?',
+                            [loginUsername, password_hash, newStatus, userId]
+                        );
+                    } else {
+                        // Se non approvato, aggiorna solo lo status
+                        await query(
+                            'UPDATE users SET status = ? WHERE id = ?',
+                            [newStatus, userId]
+                        );
+                    }
+
+                    // Invia email (usa sempre l'email originale per le notifiche)
                     await emailService.sendApprovalEmail(
                         user.email,
                         `${user.first_name} ${user.last_name}`,
-                        approved
+                        approved,
+                        loginUsername,
+                        loginPassword
                     );
 
                     results.push({ userId, success: true });

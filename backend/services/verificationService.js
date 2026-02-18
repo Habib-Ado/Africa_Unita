@@ -35,7 +35,11 @@ class VerificationService {
     async verifyToken(token) {
         try {
             const result = await query(
-                'SELECT ev.*, u.email, u.first_name, u.last_name FROM email_verifications ev JOIN users u ON ev.user_id = u.id WHERE ev.token = ? AND ev.expires_at > NOW()',
+                `SELECT ev.*, u.email, u.first_name, u.last_name, u.username, u.phone, 
+                        u.country_of_origin, u.created_at 
+                 FROM email_verifications ev 
+                 JOIN users u ON ev.user_id = u.id 
+                 WHERE ev.token = ? AND ev.expires_at > NOW()`,
                 [token]
             );
 
@@ -64,7 +68,11 @@ class VerificationService {
                     id: verification.user_id,
                     email: verification.email,
                     first_name: verification.first_name,
-                    last_name: verification.last_name
+                    last_name: verification.last_name,
+                    username: verification.username,
+                    phone: verification.phone,
+                    country_of_origin: verification.country_of_origin,
+                    created_at: verification.created_at
                 }
             };
         } catch (error) {
