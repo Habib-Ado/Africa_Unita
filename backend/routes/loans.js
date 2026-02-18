@@ -316,17 +316,44 @@ router.put('/:id/approve', authenticateToken, requireRole('treasurer', 'admin'),
     }
 });
 
-// PUT /api/loans/:id/reject - Rifiuta un prestito (solo tesorieri)
+// PUT /api/loans/:id/reject - Rifiuta un prestito (solo tesorieri, logica in JS)
 router.put('/:id/reject', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {
-        const { id } = req.params;
+        const loanId = parseInt(req.params.id, 10);
         const treasurerId = req.user.id;
         const { notes } = req.body;
 
-        await query(
-            'SELECT reject_loan(?, ?, ?)',
-            [id, treasurerId, notes || null]
+        if (isNaN(loanId)) {
+            return res.status(400).json({ success: false, message: 'ID prestito non valido' });
+        }
+
+        const loanResult = await query(
+            'SELECT id, status FROM loans WHERE id = ?',
+            [loanId]
         );
+        if (!loanResult.rows || loanResult.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Prestito non trovato' });
+        }
+
+        const loan = loanResult.rows[0];
+        if (loan.status !== 'pending') {
+            return res.status(400).json({
+                success: false,
+                message: `Il prestito è già ${loan.status === 'active' ? 'approvato' : loan.status === 'rejected' ? 'rifiutato' : 'completato'}`
+            });
+        }
+
+        const updateResult = await query(
+            `UPDATE loans SET status = 'rejected', rejected_by = ?, rejected_at = CURRENT_TIMESTAMP, rejection_notes = ? WHERE id = ? AND status = 'pending'`,
+            [treasurerId, notes || null, loanId]
+        );
+        const affected = updateResult.rows && (updateResult.rows.affectedRows != null ? updateResult.rows.affectedRows : 0);
+        if (Number(affected) === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Impossibile rifiutare il prestito (stato modificato)'
+            });
+        }
 
         res.status(200).json({
             success: true,

@@ -17,6 +17,7 @@ export default class extends AbstractView {
         this._listenersInitialized = false;
         this._confirmingPayment = false;
         this._approvingLoan = false;
+        this._rejectingLoan = false;
     }
 
     async init() {
@@ -634,9 +635,11 @@ export default class extends AbstractView {
     }
 
     async rejectLoan(loanId) {
+        if (this._rejectingLoan) return;
         const reason = prompt('Motivo del rifiuto (opzionale):');
         if (reason === null) return; // Annullato
 
+        this._rejectingLoan = true;
         try {
             const token = localStorage.getItem('auth_token');
             const response = await fetch(`/api/loans/${loanId}/reject`, {
@@ -648,18 +651,21 @@ export default class extends AbstractView {
                 body: JSON.stringify({ notes: reason })
             });
 
+            const data = await response.json();
+
             if (response.ok) {
                 this.showSuccessNotification('Prestito rifiutato');
                 await this.loadLoans();
                 await this.loadLoansSummary();
                 this.filterLoans();
             } else {
-                const data = await response.json();
                 this.showErrorNotification(data.message || 'Errore nel rifiuto del prestito');
             }
         } catch (error) {
             console.error('Error rejecting loan:', error);
             this.showErrorNotification('Errore nel rifiuto del prestito');
+        } finally {
+            this._rejectingLoan = false;
         }
     }
 
