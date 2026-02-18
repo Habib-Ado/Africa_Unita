@@ -75,13 +75,13 @@ router.post('/approve-user/:userId', async (req, res) => {
             const lastName = user.last_name ? user.last_name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '') : '';
             let baseUsername = `${firstLetter}${lastName}@africaunita.it`;
             
-            // Verifica se lo username esiste già e aggiungi un numero se necessario
+            // Verifica se lo username esiste già e aggiungi un numero se necessario (escludendo utenti eliminati)
             let counter = 1;
             loginUsername = baseUsername;
             while (true) {
                 const existingUsername = await query(
-                    'SELECT id FROM users WHERE username = ? AND id != ?',
-                    [loginUsername, userId]
+                    'SELECT id FROM users WHERE username = ? AND id != ? AND status != ?',
+                    [loginUsername, userId, 'deleted']
                 );
                 if (existingUsername.rows.length === 0) {
                     break; // Username disponibile
@@ -199,13 +199,13 @@ router.post('/bulk-approve', async (req, res) => {
                         const lastName = user.last_name ? user.last_name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '') : '';
                         let baseUsername = `${firstLetter}${lastName}@africaunita.it`;
                         
-                        // Verifica se lo username esiste già e aggiungi un numero se necessario
+                        // Verifica se lo username esiste già e aggiungi un numero se necessario (escludendo utenti eliminati)
                         let counter = 1;
                         loginUsername = baseUsername;
                         while (true) {
                             const existingUsername = await query(
-                                'SELECT id FROM users WHERE username = ? AND id != ?',
-                                [loginUsername, userId]
+                                'SELECT id FROM users WHERE username = ? AND id != ? AND status != ?',
+                                [loginUsername, userId, 'deleted']
                             );
                             if (existingUsername.rows.length === 0) {
                                 break; // Username disponibile

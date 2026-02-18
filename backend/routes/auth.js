@@ -13,10 +13,10 @@ router.post('/register', validateRegister, async (req, res) => {
     try {
         const { username, email, password, first_name, last_name, phone, country_of_origin } = req.body;
 
-        // Verifica se email o username esistono già
+        // Verifica se email o username esistono già (escludendo utenti eliminati)
         const existingUser = await query(
-            'SELECT id FROM users WHERE email = ? OR username = ?',
-            [email, username]
+            'SELECT id FROM users WHERE (email = ? OR username = ?) AND status != ?',
+            [email, username, 'deleted']
         );
 
         if (existingUser.rows.length > 0) {
