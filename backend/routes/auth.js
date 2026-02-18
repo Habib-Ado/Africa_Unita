@@ -14,12 +14,12 @@ router.post('/register', validateRegister, async (req, res) => {
         const { username, email, password, first_name, last_name, phone, country_of_origin } = req.body;
 
         // Verifica se email o username esistono già (escludendo utenti eliminati)
-        const existingUser = await query(
+        const existingActive = await query(
             'SELECT id FROM users WHERE (email = ? OR username = ?) AND status != ?',
             [email, username, 'deleted']
         );
 
-        if (existingUser.rows.length > 0) {
+        if (existingActive.rows.length > 0) {
             return res.status(400).json({
                 success: false,
                 message: 'Email o username già utilizzati'
@@ -30,15 +30,35 @@ router.post('/register', validateRegister, async (req, res) => {
         const saltRounds = 12;
         const password_hash = await bcrypt.hash(password, saltRounds);
 
-        // Inserisci nuovo utente con status 'pending' per la verifica email
         const countryValue = country_of_origin && country_of_origin.trim() !== '' ? country_of_origin : 'Africa';
-        const result = await query(
-            `INSERT INTO users (username, email, password_hash, first_name, last_name, phone, country_of_origin, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
-            [username, email, password_hash, first_name, last_name, phone, countryValue]
+        let userId;
+
+        // Se esiste un utente eliminato con stessa email o username, riattivalo (UPDATE) per evitare errore UNIQUE
+        const existingDeleted = await query(
+            'SELECT id FROM users WHERE (email = ? OR username = ?) AND status = ?',
+            [email, username, 'deleted']
         );
 
-        const userId = result.insertId;
+        if (existingDeleted.rows.length > 0) {
+            userId = existingDeleted.rows[0].id;
+            await query(
+                `UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, phone = ?, country_of_origin = ?, status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                [username, email, password_hash, first_name, last_name, phone, countryValue, userId]
+            );
+        } else {
+            const result = await query(
+                `INSERT INTO users (username, email, password_hash, first_name, last_name, phone, country_of_origin, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
+                [username, email, password_hash, first_name, last_name, phone, countryValue]
+            );
+            userId = result.rows?.insertId ?? (result.rows && !Array.isArray(result.rows) ? result.rows.insertId : null);
+            if (userId == null) {
+                const idResult = await query('SELECT LAST_INSERT_ID() as id', []);
+                const row = Array.isArray(idResult.rows) ? idResult.rows[0] : idResult.rows;
+                userId = row?.id ?? row?.ID;
+            }
+        }
+
         const user = { id: userId, username, email, first_name, last_name, status: 'pending' };
 
         // Genera token di verifica email
