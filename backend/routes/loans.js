@@ -238,18 +238,68 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 });
 
-// PUT /api/loans/:id/approve - Approva un prestito (solo tesorieri)
+// PUT /api/loans/:id/approve - Approva un prestito (solo tesorieri, logica in JS)
 router.put('/:id/approve', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {
-        const { id } = req.params;
+        const loanId = parseInt(req.params.id, 10);
         const treasurerId = req.user.id;
         const { start_date } = req.body;
-
         const startDate = start_date || new Date().toISOString().split('T')[0];
 
+        if (isNaN(loanId)) {
+            return res.status(400).json({ success: false, message: 'ID prestito non valido' });
+        }
+
+        const loanResult = await query(
+            'SELECT id, amount, total_installments, status FROM loans WHERE id = ?',
+            [loanId]
+        );
+        if (!loanResult.rows || loanResult.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Prestito non trovato' });
+        }
+
+        const loan = loanResult.rows[0];
+        if (loan.status !== 'pending') {
+            return res.status(400).json({
+                success: false,
+                message: `Il prestito è già ${loan.status === 'active' ? 'approvato' : loan.status === 'rejected' ? 'rifiutato' : 'completato'}`
+            });
+        }
+
+        const loanAmount = parseFloat(loan.amount) || 0;
+        const totalInstallments = parseInt(loan.total_installments) || 10;
+        const installmentAmount = loanAmount / totalInstallments;
+
+        const balanceResult = await query(`
+            SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE -amount END), 0) as balance
+            FROM fund_transactions
+        `);
+        const availableBalance = parseFloat(balanceResult.rows?.[0]?.balance || 0);
+
+        if (availableBalance < loanAmount) {
+            return res.status(400).json({
+                success: false,
+                message: `Fondi insufficienti. Saldo disponibile: €${availableBalance.toFixed(2)}, importo richiesto: €${loanAmount.toFixed(2)}`
+            });
+        }
+
         await query(
-            'SELECT approve_loan(?, ?, ?)',
-            [id, treasurerId, startDate]
+            `UPDATE loans SET status = 'active', start_date = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'`,
+            [startDate, treasurerId, loanId]
+        );
+
+        for (let i = 1; i <= totalInstallments; i++) {
+            const dueDate = new Date(startDate);
+            dueDate.setMonth(dueDate.getMonth() + i);
+            await query(
+                `INSERT INTO loan_installments (loan_id, installment_number, amount, due_date, status) VALUES (?, ?, ?, ?, 'pending')`,
+                [loanId, i, installmentAmount, dueDate.toISOString().split('T')[0]]
+            );
+        }
+
+        await query(
+            `INSERT INTO fund_transactions (transaction_type, amount, description, treasurer_id, reference_id) VALUES ('expense', ?, ?, ?, ?)`,
+            [loanAmount, `Prestito approvato - ID: ${loanId}`, treasurerId, loanId]
         );
 
         res.status(200).json({

@@ -16,6 +16,7 @@ export default class extends AbstractView {
         this._generatingFees = false;
         this._listenersInitialized = false;
         this._confirmingPayment = false;
+        this._approvingLoan = false;
     }
 
     async init() {
@@ -598,9 +599,11 @@ export default class extends AbstractView {
     }
 
     async approveLoan(loanId) {
+        if (this._approvingLoan) return;
         const confirmed = confirm('Sei sicuro di voler approvare questo prestito? Il denaro verrà prelevato dal fondo associazione.');
         if (!confirmed) return;
 
+        this._approvingLoan = true;
         try {
             const token = localStorage.getItem('auth_token');
             const response = await fetch(`/api/loans/${loanId}/approve`, {
@@ -611,6 +614,8 @@ export default class extends AbstractView {
                 }
             });
 
+            const data = await response.json();
+
             if (response.ok) {
                 this.showSuccessNotification('Prestito approvato con successo!');
                 await this.loadLoans();
@@ -618,12 +623,13 @@ export default class extends AbstractView {
                 await this.loadFundBalance();
                 this.filterLoans();
             } else {
-                const data = await response.json();
                 this.showErrorNotification(data.message || 'Errore nell\'approvazione del prestito');
             }
         } catch (error) {
             console.error('Error approving loan:', error);
             this.showErrorNotification('Errore nell\'approvazione del prestito');
+        } finally {
+            this._approvingLoan = false;
         }
     }
 
