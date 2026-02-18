@@ -510,11 +510,12 @@ export default class extends AbstractView {
             });
 
             if (response.ok) {
-                // Mostra notifica di successo
                 this.showSuccessNotification('Pagamento confermato con successo!');
                 await this.loadFees();
                 await this.loadFundBalance();
-                this.filterFees(); // Reinizializza i filtri
+                await this.loadTransactions();
+                this.filterFees();
+                this.filterTransactions();
             } else {
                 const data = await response.json();
                 this.showErrorNotification(data.message || 'Errore nella conferma del pagamento');

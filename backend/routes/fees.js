@@ -146,47 +146,72 @@ router.post('/generate-monthly', authenticateToken, requireRole('treasurer', 'ad
     }
 });
 
-// PUT /api/fees/:id/confirm - Conferma pagamento quota
+// PUT /api/fees/:id/confirm - Conferma pagamento quota (logica in JS, non dipende da funzione MySQL)
 router.put('/:id/confirm', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {
-        const { id } = req.params;
+        const feeId = parseInt(req.params.id, 10);
         const treasurerId = req.user.id;
+        if (isNaN(feeId)) {
+            return res.status(400).json({ success: false, message: 'ID quota non valido' });
+        }
 
-        const result = await query(
-            'SELECT confirm_fee_payment(?, ?) AS result',
-            [id, treasurerId]
+        const feeResult = await query(
+            'SELECT id, amount, status FROM membership_fees WHERE id = ?',
+            [feeId]
         );
-
-        if (!result.rows || result.rows.length === 0) {
+        if (!feeResult.rows || feeResult.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Quota non trovata'
             });
         }
 
-        const row = result.rows[0];
-        const confirmData = row.result ?? row['result'];
-        const parsed = typeof confirmData === 'string' ? JSON.parse(confirmData) : confirmData;
+        const fee = feeResult.rows[0];
+        if (fee.status === 'paid') {
+            return res.status(400).json({
+                success: false,
+                message: 'Quota già confermata'
+            });
+        }
+
+        const amount = parseFloat(fee.amount) || 10;
+
+        await query(
+            `UPDATE membership_fees SET status = 'paid', paid_date = CURRENT_TIMESTAMP WHERE id = ?`,
+            [feeId]
+        );
+        await query(
+            `INSERT INTO fund_transactions (transaction_type, amount, description, treasurer_id) VALUES ('income', ?, ?, ?)`,
+            [amount, `Pagamento quota ID: ${feeId}`, treasurerId]
+        );
 
         res.status(200).json({
             success: true,
             message: 'Pagamento confermato con successo',
-            data: { result: parsed }
+            data: {
+                result: {
+                    success: true,
+                    fee_id: feeId,
+                    amount,
+                    paid_date: new Date().toISOString().split('T')[0]
+                }
+            }
         });
 
     } catch (error) {
         console.error('Confirm payment error:', error);
         res.status(500).json({
             success: false,
-            message: 'Errore nella conferma del pagamento'
+            message: error.message || 'Errore nella conferma del pagamento'
         });
     }
 });
 
-// GET /api/fees/fund/balance - Ottieni saldo del fondo cassa
+// GET /api/fees/fund/balance - Ottieni saldo del fondo cassa (totale + entrate/uscite anno corrente)
 router.get('/fund/balance', authenticateToken, requireRole('treasurer', 'admin'), async (req, res) => {
     try {
-        // Calcola il saldo totale del fondo
+        const year = new Date().getFullYear();
+
         const balanceResult = await query(`
             SELECT 
                 COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0) as total_income,
@@ -195,15 +220,24 @@ router.get('/fund/balance', authenticateToken, requireRole('treasurer', 'admin')
             FROM fund_transactions
         `);
 
-        const stats = balanceResult.rows[0];
+        const allTime = balanceResult.rows && balanceResult.rows[0] ? balanceResult.rows[0] : { balance: 0, total_income: 0, total_expenses: 0 };
+
+        const yearResult = await query(`
+            SELECT 
+                COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0) as income_year,
+                COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0) as expense_year
+            FROM fund_transactions
+            WHERE YEAR(transaction_date) = ?
+        `, [year]);
+        const yearStats = yearResult.rows && yearResult.rows[0] ? yearResult.rows[0] : { income_year: 0, expense_year: 0 };
 
         res.status(200).json({
             success: true,
             data: {
-                balance: parseFloat(stats.balance),
+                balance: parseFloat(allTime.balance) || 0,
                 stats: {
-                    total_income_amount: parseFloat(stats.total_income),
-                    total_expense_amount: parseFloat(stats.total_expenses)
+                    total_income_amount: parseFloat(yearStats.income_year) || 0,
+                    total_expense_amount: parseFloat(yearStats.expense_year) || 0
                 }
             }
         });
