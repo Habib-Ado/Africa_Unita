@@ -180,10 +180,18 @@ router.put('/:id/confirm', authenticateToken, requireRole('treasurer', 'admin'),
             `UPDATE membership_fees SET status = 'paid', paid_date = CURRENT_TIMESTAMP WHERE id = ?`,
             [feeId]
         );
-        await query(
-            `INSERT INTO fund_transactions (transaction_type, amount, description, treasurer_id) VALUES ('income', ?, ?, ?)`,
-            [amount, `Pagamento quota ID: ${feeId}`, treasurerId]
+
+        const desc = `Pagamento quota ID: ${feeId}`;
+        const existingTx = await query(
+            `SELECT 1 FROM fund_transactions WHERE transaction_type = 'income' AND (reference_id = ? OR description = ?)`,
+            [feeId, desc]
         );
+        if (!existingTx.rows || existingTx.rows.length === 0) {
+            await query(
+                `INSERT INTO fund_transactions (transaction_type, amount, description, treasurer_id, reference_id) VALUES ('income', ?, ?, ?, ?)`,
+                [amount, desc, treasurerId, feeId]
+            );
+        }
 
         res.status(200).json({
             success: true,

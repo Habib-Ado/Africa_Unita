@@ -15,6 +15,7 @@ export default class extends AbstractView {
         this.loansSummary = null;
         this._generatingFees = false;
         this._listenersInitialized = false;
+        this._confirmingPayment = false;
     }
 
     async init() {
@@ -475,27 +476,17 @@ export default class extends AbstractView {
     }
 
     async confirmPayment(feeId) {
-        console.log('confirmPayment called with feeId:', feeId);
-        
-        // Trova i dettagli della quota
-        console.log('Searching for fee with ID:', feeId, 'Type:', typeof feeId);
-        console.log('Available fees:', this.fees.map(f => ({ id: f.id, type: typeof f.id, username: f.username })));
-        
-        const fee = this.fees.find(f => f.id == feeId); // Usa == invece di === per confronto flessibile
-        console.log('Found fee:', fee);
-        
+        if (this._confirmingPayment) return;
+        const fee = this.fees.find(f => f.id == feeId);
         if (!fee) {
-            console.log('Fee not found');
-            alert('Quota non trovata');
+            this.showErrorNotification('Quota non trovata');
             return;
         }
 
-        console.log('Showing confirm payment modal for fee:', fee);
-        // Mostra modal di conferma personalizzato
         const confirmed = await this.showConfirmPaymentModal(fee);
-        console.log('Modal result:', confirmed);
         if (!confirmed) return;
 
+        this._confirmingPayment = true;
         try {
             const token = localStorage.getItem('auth_token');
             const response = await fetch(`/api/fees/${feeId}/confirm`, {
@@ -523,6 +514,8 @@ export default class extends AbstractView {
         } catch (error) {
             console.error('Error confirming payment:', error);
             this.showErrorNotification('Errore durante la conferma del pagamento');
+        } finally {
+            this._confirmingPayment = false;
         }
     }
 
