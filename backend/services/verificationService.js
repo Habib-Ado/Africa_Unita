@@ -50,10 +50,23 @@ class VerificationService {
             const verification = result.rows[0];
 
             // Aggiorna status utente a 'email_verified'
-            await query(
-                'UPDATE users SET status = ? WHERE id = ?',
-                ['email_verified', verification.user_id]
-            );
+            // Se 'email_verified' non esiste nell'ENUM, usa 'pending' come fallback
+            try {
+                await query(
+                    'UPDATE users SET status = ? WHERE id = ?',
+                    ['email_verified', verification.user_id]
+                );
+            } catch (error) {
+                if (error.code === 'WARN_DATA_TRUNCATED' || error.errno === 1265) {
+                    console.warn('⚠️ ENUM status non include "email_verified", uso "pending" come fallback');
+                    await query(
+                        'UPDATE users SET status = ? WHERE id = ?',
+                        ['pending', verification.user_id]
+                    );
+                } else {
+                    throw error;
+                }
+            }
 
             // Rimuovi token usato
             await query(

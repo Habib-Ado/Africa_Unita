@@ -385,6 +385,26 @@ BEGIN
 END //
 DELIMITER ;
 
+-- Aggiorna l'ENUM della colonna status per includere 'email_verified'
+-- Eseguire questo script sul database Railway
+
+-- Prima verifica quali valori sono attualmente nell'ENUM
+-- SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS 
+-- WHERE TABLE_SCHEMA = 'railway' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'status';
+
+-- Modifica l'ENUM per includere tutti i valori necessari
+ALTER TABLE users 
+MODIFY COLUMN status ENUM(
+    'active', 
+    'inactive', 
+    'blocked', 
+    'unblocked', 
+    'suspended', 
+    'pending', 
+    'email_verified', 
+    'deleted'
+) DEFAULT 'pending' NOT NULL;
+
 -- Function to check member payment status
 DELIMITER //
 CREATE FUNCTION check_member_payment_status(user_id_param INT) 
