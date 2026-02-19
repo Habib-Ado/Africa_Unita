@@ -53,6 +53,39 @@ export const query = async (text, params = [], retries = 3) => {
     }
 };
 
+// Helper per eseguire query raw (senza prepared statements) - necessario per CREATE FUNCTION, DELIMITER, ecc.
+export const queryRaw = async (text, retries = 3) => {
+    const start = Date.now();
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const [rows, fields] = await pool.query(text);
+            const duration = Date.now() - start;
+            console.log('Executed raw query', { text: text.substring(0, 100) + '...', duration, rows: rows?.length || 0 });
+            return { rows, rowCount: rows?.length || 0 };
+        } catch (error) {
+            console.error(`Database raw query error (attempt ${attempt}/${retries}):`, error.message);
+            
+            if (attempt === retries) {
+                console.error('Database raw query failed after all retries:', error);
+                throw error;
+            }
+            
+            // Se è un errore di connessione, aspetta prima di riprovare
+            if (error.message.includes('Connection terminated') || 
+                error.message.includes('timeout') ||
+                error.message.includes('ECONNRESET') ||
+                error.message.includes('SSL')) {
+                console.log(`Retrying raw query in ${attempt * 1000}ms...`);
+                await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+            } else {
+                // Per altri errori, non riprovare
+                throw error;
+            }
+        }
+    }
+};
+
 // Helper per testare la connessione
 export const testConnection = async () => {
     try {

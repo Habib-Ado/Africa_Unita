@@ -1,4 +1,4 @@
-import { query } from '../database/db.js';
+import { query, queryRaw } from '../database/db.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -358,11 +358,13 @@ const runRailwayMigration = async () => {
         ];
         
         // Execute each function creation
+        // Usa queryRaw per comandi che non supportano prepared statements (CREATE FUNCTION, DROP FUNCTION, CREATE VIEW, ecc.)
         for (let i = 0; i < functions.length; i++) {
             const func = functions[i];
             try {
                 console.log(`📝 Executing function ${i + 1}/${functions.length}...`);
-                await query(func);
+                // Usa queryRaw per tutti i comandi DDL (CREATE, DROP, ALTER)
+                await queryRaw(func);
                 console.log(`✅ Function ${i + 1} executed successfully`);
             } catch (error) {
                 console.log(`⚠️  Warning for function ${i + 1}:`, error.message);
