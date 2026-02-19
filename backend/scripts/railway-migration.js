@@ -34,16 +34,20 @@ const runRailwayMigration = async () => {
              READS SQL DATA
              DETERMINISTIC
              BEGIN
+                 -- Tutte le variabili devono essere dichiarate PRIMA dei cursori e handler
                  DECLARE done INT DEFAULT FALSE;
                  DECLARE user_id_var INT;
-                 DECLARE user_cursor CURSOR FOR 
-                     SELECT id FROM users 
-                     WHERE status = 'active' AND role != 'admin';
-                 DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
-                 
                  DECLARE fees_generated INT DEFAULT 0;
                  DECLARE total_amount DECIMAL(10,2) DEFAULT 0;
                  DECLARE result JSON;
+                 
+                 -- Poi i cursori
+                 DECLARE user_cursor CURSOR FOR 
+                     SELECT id FROM users 
+                     WHERE status = 'active' AND role != 'admin';
+                 
+                 -- Infine gli handler
+                 DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
                  
                  OPEN user_cursor;
                  
