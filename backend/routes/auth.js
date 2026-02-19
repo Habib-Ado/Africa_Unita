@@ -13,18 +13,47 @@ router.post('/register', validateRegister, async (req, res) => {
     try {
         const { username, email, password, first_name, last_name, phone, country_of_origin } = req.body;
 
-        // Verifica se email o username esistono già (escludendo utenti eliminati)
+        // Verifica se email o username esistono già per utenti attivi (escludendo solo quelli eliminati)
+        // Permettiamo la ri-registrazione se l'utente è in pending o email_verified (non ha completato il processo)
         const existingActive = await query(
-            'SELECT id FROM users WHERE (email = ? OR username = ?) AND status != ?',
-            [email, username, 'deleted']
+            'SELECT id, email, username, status FROM users WHERE (email = ? OR username = ?) AND status NOT IN (?, ?, ?)',
+            [email, username, 'deleted', 'pending', 'email_verified']
         );
 
         if (existingActive.rows.length > 0) {
+            const conflicts = existingActive.rows.map(r => ({
+                id: r.id,
+                email: r.email,
+                username: r.username,
+                status: r.status
+            }));
+            console.log(`⚠️ Tentativo registrazione con email/username già utilizzati:`, {
+                tentativo: { email, username },
+                conflitti: conflicts
+            });
+            
+            // Determina quale campo causa il conflitto
+            const emailConflict = conflicts.some(c => c.email === email);
+            const usernameConflict = conflicts.some(c => c.username === username);
+            
+            let message = 'Email o username già utilizzati';
+            if (emailConflict && !usernameConflict) {
+                message = 'Questa email è già stata utilizzata';
+            } else if (usernameConflict && !emailConflict) {
+                message = 'Questo username è già stato utilizzato';
+            }
+            
             return res.status(400).json({
                 success: false,
-                message: 'Email o username già utilizzati'
+                message: message
             });
         }
+
+        // Se esiste un utente con status 'pending' o 'email_verified', lo aggiorniamo invece di creare duplicati
+        const existingPending = await query(
+            'SELECT id FROM users WHERE (email = ? OR username = ?) AND status IN (?, ?)',
+            [email, username, 'pending', 'email_verified']
+        );
 
         // Hash della password
         const saltRounds = 12;
@@ -33,29 +62,42 @@ router.post('/register', validateRegister, async (req, res) => {
         const countryValue = country_of_origin && country_of_origin.trim() !== '' ? country_of_origin : 'Africa';
         let userId;
 
-        // Se esiste un utente eliminato con stessa email o username, riattivalo (UPDATE) per evitare errore UNIQUE
-        const existingDeleted = await query(
-            'SELECT id FROM users WHERE (email = ? OR username = ?) AND status = ?',
-            [email, username, 'deleted']
-        );
-
-        if (existingDeleted.rows.length > 0) {
-            userId = existingDeleted.rows[0].id;
+        // Se esiste un utente con status 'pending', 'email_verified' o 'deleted', aggiornalo invece di creare duplicati
+        if (existingPending.rows.length > 0) {
+            userId = existingPending.rows[0].id;
+            console.log(`🔄 Aggiornamento utente esistente (status pending/email_verified) con ID: ${userId}`);
             await query(
                 `UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, phone = ?, country_of_origin = ?, status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
                 [username, email, password_hash, first_name, last_name, phone, countryValue, userId]
             );
         } else {
-            const result = await query(
-                `INSERT INTO users (username, email, password_hash, first_name, last_name, phone, country_of_origin, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
-                [username, email, password_hash, first_name, last_name, phone, countryValue]
+            // Verifica se esiste un utente eliminato
+            const existingDeleted = await query(
+                'SELECT id FROM users WHERE (email = ? OR username = ?) AND status = ?',
+                [email, username, 'deleted']
             );
-            userId = result.rows?.insertId ?? (result.rows && !Array.isArray(result.rows) ? result.rows.insertId : null);
-            if (userId == null) {
-                const idResult = await query('SELECT LAST_INSERT_ID() as id', []);
-                const row = Array.isArray(idResult.rows) ? idResult.rows[0] : idResult.rows;
-                userId = row?.id ?? row?.ID;
+
+            if (existingDeleted.rows.length > 0) {
+                userId = existingDeleted.rows[0].id;
+                console.log(`🔄 Riattivazione utente eliminato con ID: ${userId}`);
+                await query(
+                    `UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, phone = ?, country_of_origin = ?, status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                    [username, email, password_hash, first_name, last_name, phone, countryValue, userId]
+                );
+            } else {
+                // Crea nuovo utente
+                console.log(`✅ Creazione nuovo utente`);
+                const result = await query(
+                    `INSERT INTO users (username, email, password_hash, first_name, last_name, phone, country_of_origin, status)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
+                    [username, email, password_hash, first_name, last_name, phone, countryValue]
+                );
+                userId = result.rows?.insertId ?? (result.rows && !Array.isArray(result.rows) ? result.rows.insertId : null);
+                if (userId == null) {
+                    const idResult = await query('SELECT LAST_INSERT_ID() as id', []);
+                    const row = Array.isArray(idResult.rows) ? idResult.rows[0] : idResult.rows;
+                    userId = row?.id ?? row?.ID;
+                }
             }
         }
 
