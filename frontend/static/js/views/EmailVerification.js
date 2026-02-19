@@ -8,6 +8,12 @@ export default class extends AbstractView {
     }
 
     async init() {
+        // Evita doppia inizializzazione
+        if (this._initialized) {
+            return;
+        }
+        this._initialized = true;
+
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
 
@@ -20,6 +26,12 @@ export default class extends AbstractView {
     }
 
     async verifyEmail(token) {
+        // Evita doppia chiamata
+        if (this._verifying) {
+            return;
+        }
+        this._verifying = true;
+
         try {
             const response = await apiFetch(`/api/auth/verify-email?token=${token}`, {
                 method: 'GET'
@@ -39,6 +51,8 @@ export default class extends AbstractView {
         } catch (error) {
             console.error('Verification error:', error);
             this.showError('Errore di connessione. Riprova più tardi.');
+        } finally {
+            this._verifying = false;
         }
     }
 

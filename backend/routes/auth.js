@@ -281,6 +281,23 @@ router.get('/verify-email', async (req, res) => {
             });
         }
 
+        // Verifica se il token esiste ancora
+        const tokenCheck = await query(
+            'SELECT ev.*, u.id, u.email, u.status FROM email_verifications ev JOIN users u ON ev.user_id = u.id WHERE ev.token = ?',
+            [token]
+        );
+
+        // Se il token non esiste più, probabilmente è già stato verificato
+        // Restituisci un messaggio di successo invece di un errore
+        if (tokenCheck.rows.length === 0) {
+            console.log('⚠️ Token già utilizzato o non valido:', token.substring(0, 20) + '...');
+            return res.status(200).json({
+                success: true,
+                message: 'Email già verificata! Un amministratore esaminerà la tua richiesta e ti invierà una notifica quando il tuo account sarà approvato.',
+                data: { alreadyVerified: true }
+            });
+        }
+
         const verification = await verificationService.verifyToken(token);
 
         if (!verification.valid) {
