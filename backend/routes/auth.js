@@ -12,6 +12,14 @@ const router = express.Router();
 router.post('/register', validateRegister, async (req, res) => {
     try {
         const { username, email, password, first_name, last_name, phone, country_of_origin } = req.body;
+        
+        console.log('📝 Tentativo registrazione:', {
+            username: username?.substring(0, 20) + '...',
+            email: email?.substring(0, 20) + '...',
+            first_name,
+            last_name,
+            hasPassword: !!password
+        });
 
         // Verifica se email o username esistono già per utenti attivi (escludendo solo quelli eliminati)
         // Permettiamo la ri-registrazione se l'utente è in pending o email_verified (non ha completato il processo)
