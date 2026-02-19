@@ -1,20 +1,15 @@
 #!/bin/bash
 
 # Railway deployment script for Africa Unita
-echo "🚀 Starting Africa Unita deployment..."
+# NIXPACKS installa già le dipendenze durante il build, quindi qui avviamo solo il server
+echo "🚀 Starting Africa Unita server..."
 
 # Navigate to backend directory
-cd backend
-
-# Remove bcrypt and install bcryptjs
-echo "🔧 Fixing bcrypt compatibility..."
-npm uninstall bcrypt
-npm install bcryptjs
-
-# Install dependencies
-echo "📦 Installing dependencies..."
-npm install --omit=dev
+cd backend || {
+    echo "❌ Error: backend directory not found"
+    exit 1
+}
 
 # Start the server
-echo "🌐 Starting server..."
-npm start
+echo "🌐 Starting Node.js server..."
+exec npm start

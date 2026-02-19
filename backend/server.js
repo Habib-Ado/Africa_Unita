@@ -178,6 +178,8 @@ app.use((err, req, res, next) => {
 
 const startServer = async () => {
     try {
+        console.log('🚀 Starting server initialization...');
+        
         // Test connessione database
         console.log('🔍 Testing database connection...');
         const dbConnected = await testConnection();
@@ -186,18 +188,30 @@ const startServer = async () => {
             console.error('❌ Database connection failed. Please check your configuration.');
             process.exit(1);
         }
+        console.log('✅ Database connection successful');
         
-        // Run Railway migration if on Railway
-        if (process.env.RAILWAY_ENVIRONMENT) {
+        // Run Railway migration if on Railway (con timeout per evitare blocchi)
+        if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PUBLIC_DOMAIN) {
             console.log('🚀 Running Railway migration...');
             try {
-                await runRailwayMigration();
+                // Timeout di 30 secondi per la migrazione
+                const migrationPromise = runRailwayMigration();
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Migration timeout after 30 seconds')), 30000)
+                );
+                
+                await Promise.race([migrationPromise, timeoutPromise]);
                 console.log('✅ Railway migration completed');
             } catch (error) {
                 console.log('⚠️  Railway migration warning:', error.message);
+                console.log('⚠️  Continuing server startup despite migration issues...');
                 // Continue anyway, functions might already exist
             }
+        } else {
+            console.log('ℹ️  Skipping Railway migration (not on Railway)');
         }
+        
+        console.log('🌐 Starting HTTP server...');
 
         // Start server
         app.listen(PORT, '0.0.0.0', () => {
