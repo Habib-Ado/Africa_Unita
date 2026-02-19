@@ -13,7 +13,7 @@ npm install bcryptjs
 
 # Install dependencies
 echo "📦 Installing dependencies..."
-npm install
+npm install --omit=dev
 
 # Start the server
 echo "🌐 Starting server..."
