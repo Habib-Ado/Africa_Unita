@@ -11,17 +11,29 @@ class EmailService {
     initializeTransporter() {
         // Configurazione per Gmail (può essere cambiata per altri provider)
         // Supporta sia EMAIL_PASS che EMAIL_PASSWORD per compatibilità
+        const emailUser = process.env.EMAIL_USER;
         const emailPass = process.env.EMAIL_PASSWORD;
+        
+        if (!emailUser || !emailPass) {
+            console.error('❌ EMAIL_USER o EMAIL_PASSWORD non configurati nelle variabili d\'ambiente');
+            console.error(`   EMAIL_USER: ${emailUser ? 'configurato' : 'MANCANTE'}`);
+            console.error(`   EMAIL_PASSWORD: ${emailPass ? 'configurato' : 'MANCANTE'}`);
+            this.transporter = null;
+            return;
+        }
+        
         // Rimuovi eventuali spazi dalla password (le App Password di Gmail non devono avere spazi)
         const cleanPassword = emailPass.replace(/\s+/g, '');
         
         this.transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
-                user: process.env.EMAIL_USER,
+                user: emailUser,
                 pass: cleanPassword
             }
         });
+        
+        console.log(`✅ Email transporter inizializzato con successo per: ${emailUser}`);
     }
 
     async sendVerificationEmail(userEmail, verificationToken, userName) {
@@ -292,11 +304,25 @@ class EmailService {
         };
 
         try {
+            if (!this.transporter) {
+                console.error('❌ Email transporter non inizializzato. Verifica EMAIL_USER e EMAIL_PASSWORD nelle variabili d\'ambiente.');
+                return false;
+            }
+            
+            console.log(`📤 Tentativo di invio email a: ${userEmail}`);
+            console.log(`   Oggetto: ${subject}`);
+            console.log(`   Approvato: ${approved}, Username: ${loginUsername || 'N/A'}, Password: ${loginPassword ? '***' : 'N/A'}`);
+            
             await this.transporter.sendMail(mailOptions);
-            console.log(`✅ Email di ${approved ? 'approvazione' : 'rifiuto'} inviata a: ${userEmail}`);
+            console.log(`✅ Email di ${approved ? 'approvazione' : 'rifiuto'} inviata con successo a: ${userEmail}`);
             return true;
         } catch (error) {
-            console.error(`❌ Errore invio email di ${approved ? 'approvazione' : 'rifiuto'}:`, error);
+            console.error(`❌ Errore invio email di ${approved ? 'approvazione' : 'rifiuto'} a ${userEmail}:`, error);
+            console.error(`   Codice errore: ${error.code || 'N/A'}`);
+            console.error(`   Messaggio: ${error.message || 'N/A'}`);
+            if (error.response) {
+                console.error(`   Risposta server: ${error.response}`);
+            }
             return false;
         }
     }

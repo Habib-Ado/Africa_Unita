@@ -51,12 +51,23 @@ router.post('/approve-user/:userId', async (req, res) => {
         }
 
         // Verifica che l'utente esista e sia in attesa
+        console.log(`🔍 Verifica utente ID: ${userId}, approved: ${approved}`);
+        
         const userResult = await query(
             'SELECT id, email, first_name, last_name, status FROM users WHERE id = ? AND status = ?',
             [userId, 'email_verified']
         );
 
         if (userResult.rows.length === 0) {
+            console.log(`❌ Utente ${userId} non trovato o status non è 'email_verified'`);
+            // Prova a vedere quale status ha l'utente
+            const checkUser = await query(
+                'SELECT id, email, first_name, last_name, status FROM users WHERE id = ?',
+                [userId]
+            );
+            if (checkUser.rows.length > 0) {
+                console.log(`ℹ️ Utente trovato con status: ${checkUser.rows[0].status}`);
+            }
             return res.status(404).json({
                 success: false,
                 message: 'Utente non trovato o già processato'
@@ -64,12 +75,15 @@ router.post('/approve-user/:userId', async (req, res) => {
         }
 
         const user = userResult.rows[0];
+        console.log(`✅ Utente trovato: ${user.email}, ${user.first_name} ${user.last_name}, status: ${user.status}`);
+        
         const newStatus = approved ? 'active' : 'blocked';
 
         let loginUsername = null;
         let loginPassword = null;
 
         if (approved) {
+            console.log(`🔐 Generazione credenziali per utente ${user.email}...`);
             // Genera username: prima lettera del nome + cognome@africaunita.it (lowercase, senza spazi)
             const firstLetter = user.first_name ? user.first_name.charAt(0).toLowerCase() : '';
             const lastName = user.last_name ? user.last_name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '') : '';
@@ -110,18 +124,22 @@ router.post('/approve-user/:userId', async (req, res) => {
             
             // Mescola la password
             loginPassword = password.split('').sort(() => Math.random() - 0.5).join('');
+            console.log(`🔑 Password temporanea generata: ${loginPassword}`);
 
             // Hash della password
             const saltRounds = 12;
             const password_hash = await bcrypt.hash(loginPassword, saltRounds);
+            console.log(`✅ Password hash generato`);
 
             // Aggiorna utente con nuovo username (email di accesso), password e status
             // L'email originale viene mantenuta per le notifiche
             // Imposta last_login = NULL per forzare il cambio password al primo accesso
+            console.log(`💾 Aggiornamento database per utente ${userId} con username: ${loginUsername}`);
             await query(
                 'UPDATE users SET username = ?, password_hash = ?, status = ?, last_login = NULL WHERE id = ?',
                 [loginUsername, password_hash, newStatus, userId]
             );
+            console.log(`✅ Database aggiornato con successo`);
         } else {
             // Se non approvato, aggiorna solo lo status
             await query(
@@ -132,22 +150,33 @@ router.post('/approve-user/:userId', async (req, res) => {
 
         // Invia email di notifica all'utente (usa sempre l'email originale per le notifiche)
         let emailSent = false;
-        try {
-            emailSent = await emailService.sendApprovalEmail(
-                user.email,
-                `${user.first_name} ${user.last_name}`,
-                approved,
-                loginUsername,
-                loginPassword
-            );
+        if (approved && loginUsername && loginPassword) {
+            console.log(`📧 Invio email di approvazione a ${user.email} con credenziali:`);
+            console.log(`   Username: ${loginUsername}`);
+            console.log(`   Password: ${loginPassword}`);
             
-            if (!emailSent) {
-                console.error(`⚠️ Avviso: Email di ${approved ? 'approvazione' : 'rifiuto'} non inviata a ${user.email}`);
+            try {
+                emailSent = await emailService.sendApprovalEmail(
+                    user.email,
+                    `${user.first_name} ${user.last_name}`,
+                    approved,
+                    loginUsername,
+                    loginPassword
+                );
+                
+                if (emailSent) {
+                    console.log(`✅ Email inviata con successo a ${user.email}`);
+                } else {
+                    console.error(`⚠️ Avviso: Email di approvazione non inviata a ${user.email} (sendApprovalEmail ha restituito false)`);
+                }
+            } catch (emailError) {
+                console.error(`❌ Errore durante l'invio dell'email di approvazione:`, emailError);
+                console.error(`   Stack:`, emailError.stack);
+                // L'utente è comunque approvato anche se l'email non viene inviata
+                // Le credenziali sono state salvate nel database
             }
-        } catch (emailError) {
-            console.error(`❌ Errore durante l'invio dell'email di ${approved ? 'approvazione' : 'rifiuto'}:`, emailError);
-            // L'utente è comunque approvato anche se l'email non viene inviata
-            // Le credenziali sono state salvate nel database
+        } else if (approved) {
+            console.warn(`⚠️ Email non inviata: approved=${approved}, loginUsername=${loginUsername}, loginPassword=${loginPassword ? '***' : 'null'}`);
         }
 
         res.status(200).json({
