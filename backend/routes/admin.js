@@ -131,21 +131,38 @@ router.post('/approve-user/:userId', async (req, res) => {
         }
 
         // Invia email di notifica all'utente (usa sempre l'email originale per le notifiche)
-        await emailService.sendApprovalEmail(
-            user.email,
-            `${user.first_name} ${user.last_name}`,
-            approved,
-            loginUsername,
-            loginPassword
-        );
+        let emailSent = false;
+        try {
+            emailSent = await emailService.sendApprovalEmail(
+                user.email,
+                `${user.first_name} ${user.last_name}`,
+                approved,
+                loginUsername,
+                loginPassword
+            );
+            
+            if (!emailSent) {
+                console.error(`⚠️ Avviso: Email di ${approved ? 'approvazione' : 'rifiuto'} non inviata a ${user.email}`);
+            }
+        } catch (emailError) {
+            console.error(`❌ Errore durante l'invio dell'email di ${approved ? 'approvazione' : 'rifiuto'}:`, emailError);
+            // L'utente è comunque approvato anche se l'email non viene inviata
+            // Le credenziali sono state salvate nel database
+        }
 
         res.status(200).json({
             success: true,
-            message: `Utente ${approved ? 'approvato' : 'rifiutato'} con successo`,
+            message: `Utente ${approved ? 'approvato' : 'rifiutato'} con successo${approved && emailSent ? '. Email con credenziali inviata.' : approved && !emailSent ? '. Attenzione: email non inviata, ma le credenziali sono state salvate.' : ''}`,
             data: { 
                 userId, 
                 status: newStatus,
-                emailSent: true
+                emailSent: emailSent,
+                ...(approved && loginUsername && loginPassword ? {
+                    credentials: {
+                        username: loginUsername,
+                        password: loginPassword
+                    }
+                } : {})
             }
         });
 
@@ -253,15 +270,35 @@ router.post('/bulk-approve', async (req, res) => {
                     }
 
                     // Invia email (usa sempre l'email originale per le notifiche)
-                    await emailService.sendApprovalEmail(
-                        user.email,
-                        `${user.first_name} ${user.last_name}`,
-                        approved,
-                        loginUsername,
-                        loginPassword
-                    );
+                    let emailSent = false;
+                    try {
+                        emailSent = await emailService.sendApprovalEmail(
+                            user.email,
+                            `${user.first_name} ${user.last_name}`,
+                            approved,
+                            loginUsername,
+                            loginPassword
+                        );
+                        
+                        if (!emailSent) {
+                            console.error(`⚠️ Avviso: Email di ${approved ? 'approvazione' : 'rifiuto'} non inviata a ${user.email}`);
+                        }
+                    } catch (emailError) {
+                        console.error(`❌ Errore durante l'invio dell'email per utente ${userId}:`, emailError);
+                        // L'utente è comunque approvato anche se l'email non viene inviata
+                    }
 
-                    results.push({ userId, success: true });
+                    results.push({ 
+                        userId, 
+                        success: true,
+                        emailSent: emailSent,
+                        ...(approved && loginUsername && loginPassword ? {
+                            credentials: {
+                                username: loginUsername,
+                                password: loginPassword
+                            }
+                        } : {})
+                    });
                 } else {
                     results.push({ userId, success: false, error: 'Utente non trovato' });
                 }
