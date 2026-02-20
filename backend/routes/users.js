@@ -478,6 +478,7 @@ router.put('/:id/block', authenticateToken, async (req, res) => {
 
         const { id } = req.params;
         const { blocked } = req.body;
+        console.log(`🔒 [users.js] ${blocked ? 'Blocco' : 'Sblocco'} utente ID: ${id}`);
 
         // Non permettere di bloccare se stesso
         if (parseInt(id) === req.user.id) {
@@ -487,22 +488,131 @@ router.put('/:id/block', authenticateToken, async (req, res) => {
             });
         }
 
-        // Cambia lo status in base al parametro blocked
-        const newStatus = blocked ? 'blocked' : 'active';
-
-        // Aggiorna lo status
-        const result = await query(
-            `UPDATE users 
-             SET status = ?, updated_at = CURRENT_TIMESTAMP 
-             WHERE id = ? AND status != 'deleted'`,
-            [newStatus, id]
+        // Recupera l'utente prima di modificarlo per vedere lo status corrente
+        const currentUserResult = await query(
+            'SELECT id, username, email, first_name, last_name, status FROM users WHERE id = ? AND status != ?',
+            [id, 'deleted']
         );
 
-        if (result.rowCount === 0) {
+        if (currentUserResult.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Utente non trovato'
             });
+        }
+
+        const currentUser = currentUserResult.rows[0];
+        const currentStatus = currentUser.status;
+        console.log(`📋 [users.js] Status corrente utente ${id}: ${currentStatus}`);
+
+        let loginUsername = null;
+        let loginPassword = null;
+        let emailSent = false;
+
+        // Se si sta sbloccando un utente (blocked = false) e l'utente ha status 'email_verified' o 'pending'
+        // genera le credenziali e invia l'email
+        if (!blocked && (currentStatus === 'email_verified' || currentStatus === 'pending')) {
+            console.log(`🔐 [users.js] Generazione credenziali per utente ${id} (status: ${currentStatus})`);
+            
+            // Genera username: prima lettera del nome + cognome@africaunita.it (lowercase, senza spazi)
+            const firstLetter = currentUser.first_name ? currentUser.first_name.charAt(0).toLowerCase() : '';
+            const lastName = currentUser.last_name ? currentUser.last_name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '') : '';
+            
+            if (!firstLetter || !lastName) {
+                console.error(`❌ [users.js] Errore: Nome o cognome mancante per utente ${currentUser.email}`);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Nome e cognome sono obbligatori per generare le credenziali di accesso'
+                });
+            }
+            
+            let baseUsername = `${firstLetter}${lastName}@africaunita.it`;
+            console.log(`📧 [users.js] Username base generato: ${baseUsername}`);
+            
+            // Verifica se lo username esiste già e aggiungi un numero se necessario (escludendo utenti eliminati)
+            let counter = 1;
+            loginUsername = baseUsername;
+            while (true) {
+                const existingUsername = await query(
+                    'SELECT id FROM users WHERE username = ? AND id != ? AND status != ?',
+                    [loginUsername, id, 'deleted']
+                );
+                if (existingUsername.rows.length === 0) {
+                    break; // Username disponibile
+                }
+                // Se esiste già, aggiungi un numero prima di @africaunita.it
+                loginUsername = `${firstLetter}${lastName}${counter}@africaunita.it`;
+                counter++;
+            }
+            console.log(`✅ [users.js] Username finale: ${loginUsername}`);
+
+            // Genera password temporanea sicura (12 caratteri: lettere maiuscole, minuscole, numeri)
+            const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+            const numbers = '0123456789';
+            const allChars = uppercase + lowercase + numbers;
+            
+            let password = '';
+            // Assicura almeno un carattere di ogni tipo
+            password += uppercase[Math.floor(Math.random() * uppercase.length)];
+            password += lowercase[Math.floor(Math.random() * lowercase.length)];
+            password += numbers[Math.floor(Math.random() * numbers.length)];
+            
+            // Completa la password con caratteri casuali
+            for (let i = password.length; i < 12; i++) {
+                password += allChars[Math.floor(Math.random() * allChars.length)];
+            }
+            
+            // Mescola la password
+            loginPassword = password.split('').sort(() => Math.random() - 0.5).join('');
+            console.log(`🔑 [users.js] Password temporanea generata`);
+
+            // Hash della password
+            const saltRounds = 12;
+            const password_hash = await bcrypt.hash(loginPassword, saltRounds);
+            console.log(`✅ [users.js] Password hash generato`);
+
+            // Aggiorna utente con nuovo username (email di accesso), password e status
+            // L'email originale viene mantenuta per le notifiche
+            // Imposta last_login = NULL per forzare il cambio password al primo accesso
+            console.log(`💾 [users.js] Aggiornamento database per utente ${id} con username: ${loginUsername}`);
+            await query(
+                'UPDATE users SET username = ?, password_hash = ?, status = ?, last_login = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                [loginUsername, password_hash, 'active', id]
+            );
+            console.log(`✅ [users.js] Database aggiornato con successo`);
+
+            // Invia email di notifica all'utente con le credenziali
+            console.log(`📧 [users.js] Invio email di approvazione a ${currentUser.email} con credenziali`);
+            try {
+                emailSent = await emailService.sendApprovalEmail(
+                    currentUser.email,
+                    `${currentUser.first_name} ${currentUser.last_name}`,
+                    true, // approved
+                    loginUsername,
+                    loginPassword
+                );
+                
+                if (emailSent) {
+                    console.log(`✅ [users.js] Email inviata con successo a ${currentUser.email}`);
+                } else {
+                    console.error(`⚠️ [users.js] Email di approvazione non inviata a ${currentUser.email} (sendApprovalEmail ha restituito false)`);
+                }
+            } catch (emailError) {
+                console.error(`❌ [users.js] Errore durante l'invio dell'email di approvazione:`, emailError);
+                console.error(`   Stack:`, emailError.stack);
+                // L'utente è comunque sbloccato anche se l'email non viene inviata
+            }
+        } else {
+            // Se si sta solo bloccando/sbloccando un utente già attivo, aggiorna solo lo status
+            const newStatus = blocked ? 'blocked' : 'active';
+            console.log(`🔄 [users.js] Aggiornamento solo status a: ${newStatus}`);
+            await query(
+                `UPDATE users 
+                 SET status = ?, updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = ? AND status != 'deleted'`,
+                [newStatus, id]
+            );
         }
 
         // Recupera l'utente aggiornato
@@ -513,8 +623,23 @@ router.put('/:id/block', authenticateToken, async (req, res) => {
 
         res.json({
             success: true,
-            message: blocked ? 'Utente bloccato con successo' : 'Utente sbloccato con successo',
-            data: { user: userResult.rows[0] }
+            message: blocked 
+                ? 'Utente bloccato con successo' 
+                : (emailSent 
+                    ? 'Utente sbloccato con successo. Email con credenziali inviata.' 
+                    : (loginUsername 
+                        ? 'Utente sbloccato con successo. Attenzione: email non inviata, ma le credenziali sono state salvate.'
+                        : 'Utente sbloccato con successo')),
+            data: { 
+                user: userResult.rows[0],
+                emailSent: emailSent,
+                ...(loginUsername && loginPassword ? {
+                    credentials: {
+                        username: loginUsername,
+                        password: loginPassword
+                    }
+                } : {})
+            }
         });
     } catch (error) {
         console.error('Block/unblock user error:', error);
