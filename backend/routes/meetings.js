@@ -562,9 +562,48 @@ router.get('/user/:userId/stats', authenticateToken, async (req, res) => {
             });
         }
         
-        const statsResult = await query(`
-            SELECT * FROM user_meeting_stats WHERE user_id = ?
-        `, [userId]);
+        // Usa la VIEW user_meeting_stats se esiste, altrimenti calcola le statistiche manualmente
+        let statsResult;
+        try {
+            statsResult = await query(`
+                SELECT * FROM user_meeting_stats WHERE user_id = ?
+            `, [userId]);
+        } catch (error) {
+            // Se la VIEW non esiste, calcola le statistiche manualmente
+            console.warn('VIEW user_meeting_stats non trovata, calcolo manuale delle statistiche:', error.message);
+            
+            const meetingsAttended = await query(`
+                SELECT COUNT(DISTINCT meeting_id) as count FROM meeting_attendance WHERE user_id = ?
+            `, [userId]);
+            
+            const meetingsPresent = await query(`
+                SELECT COUNT(DISTINCT meeting_id) as count FROM meeting_attendance 
+                WHERE user_id = ? AND status = 'present'
+            `, [userId]);
+            
+            const meetingsAbsent = await query(`
+                SELECT COUNT(DISTINCT meeting_id) as count FROM meeting_attendance 
+                WHERE user_id = ? AND status = 'absent'
+            `, [userId]);
+            
+            const totalPenaltyAmount = await query(`
+                SELECT COALESCE(SUM(amount), 0) as total FROM meeting_penalties 
+                WHERE user_id = ? AND status = 'pending'
+            `, [userId]);
+            
+            statsResult = {
+                rows: [{
+                    user_id: userId,
+                    meetings_attended: meetingsAttended.rows[0]?.count || 0,
+                    total_meetings: meetingsAttended.rows[0]?.count || 0,
+                    meetings_present: meetingsPresent.rows[0]?.count || 0,
+                    meetings_absent: meetingsAbsent.rows[0]?.count || 0,
+                    meetings_excused: 0,
+                    total_penalty_amount: totalPenaltyAmount.rows[0]?.total || 0,
+                    pending_penalties_count: 0
+                }]
+            };
+        }
         
         // Ottieni le multe pendenti
         const penaltiesResult = await query(`

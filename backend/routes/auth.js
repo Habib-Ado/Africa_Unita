@@ -190,9 +190,16 @@ router.post('/login', validateLogin, async (req, res) => {
 
         // Aggiorna ultimo login solo se non è il primo accesso
         // Se è il primo accesso, last_login rimane NULL finché non cambia la password
+        // Aggiorna anche last_activity per tracciare l'inattività
         if (!mustChangePassword) {
             await query(
-                'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
+                'UPDATE users SET last_login = CURRENT_TIMESTAMP, last_activity = CURRENT_TIMESTAMP WHERE id = ?',
+                [user.id]
+            );
+        } else {
+            // Anche al primo accesso, imposta last_activity per tracciare l'inattività
+            await query(
+                'UPDATE users SET last_activity = CURRENT_TIMESTAMP WHERE id = ?',
                 [user.id]
             );
         }
@@ -272,13 +279,33 @@ router.get('/me', async (req, res) => {
     }
 });
 
-// POST /api/auth/logout - Logout (solo per compatibilità)
-router.post('/logout', async (req, res) => {
-    // Con JWT non c'è bisogno di logout lato server
-    res.status(200).json({
-        success: true,
-        message: 'Logout effettuato con successo'
-    });
+// POST /api/auth/logout - Logout
+router.post('/logout', authenticateToken, async (req, res) => {
+    try {
+        // Resetta last_activity per invalidare la sessione lato server
+        // Anche se con JWT il token rimane valido, questo impedisce che venga considerato attivo
+        try {
+            await query(
+                'UPDATE users SET last_activity = NULL WHERE id = ?',
+                [req.user.id]
+            );
+        } catch (updateError) {
+            // Se il campo last_activity non esiste ancora, ignora l'errore
+            console.warn('Campo last_activity non trovato durante logout:', updateError.message);
+        }
+        
+        res.status(200).json({
+            success: true,
+            message: 'Logout effettuato con successo'
+        });
+    } catch (error) {
+        console.error('Logout error:', error);
+        // Restituisci comunque successo anche se c'è un errore
+        res.status(200).json({
+            success: true,
+            message: 'Logout effettuato con successo'
+        });
+    }
 });
 
 // GET /api/auth/verify-email - Verifica email con token

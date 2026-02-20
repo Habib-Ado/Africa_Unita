@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import compression from 'compression';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { testConnection } from './database/db.js';
 import runRailwayMigration from './scripts/railway-migration.js';
@@ -95,7 +96,25 @@ app.use('/static', express.static(path.join(frontendPath, 'static')));
 
 // Serve uploaded files (images, documents, etc.)
 const uploadsPath = path.join(__dirname, 'uploads');
-app.use('/uploads', express.static(uploadsPath));
+app.use('/uploads', express.static(uploadsPath, {
+    // Aggiungi headers per la cache degli avatar (1 anno)
+    maxAge: '1y',
+    etag: true,
+    lastModified: true
+}));
+
+// Middleware per gestire avatar mancanti
+app.use('/uploads/avatars', (req, res, next) => {
+    const filePath = path.join(uploadsPath, 'avatars', req.path);
+    if (!fs.existsSync(filePath)) {
+        // Se l'avatar non esiste, restituisci l'avatar di default
+        const defaultAvatar = path.join(__dirname, '../frontend/static/img/avatar.png');
+        if (fs.existsSync(defaultAvatar)) {
+            return res.sendFile(defaultAvatar);
+        }
+    }
+    next();
+});
 
 // Serve favicon.ico from favicon.png
 app.get('/favicon.ico', (req, res) => {

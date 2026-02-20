@@ -320,14 +320,15 @@ router.put('/change-password', authenticateToken, async (req, res) => {
         const newPasswordHash = await bcrypt.hash(new_password, saltRounds);
 
         // Aggiorna password e imposta last_login se è il primo accesso
+        // Aggiorna anche last_activity per tracciare l'inattività
         if (isFirstLogin) {
             await query(
-                'UPDATE users SET password_hash = ?, last_login = CURRENT_TIMESTAMP WHERE id = ?',
+                'UPDATE users SET password_hash = ?, last_login = CURRENT_TIMESTAMP, last_activity = CURRENT_TIMESTAMP WHERE id = ?',
                 [newPasswordHash, userId]
             );
         } else {
             await query(
-                'UPDATE users SET password_hash = ? WHERE id = ?',
+                'UPDATE users SET password_hash = ?, last_activity = CURRENT_TIMESTAMP WHERE id = ?',
                 [newPasswordHash, userId]
             );
         }
@@ -368,7 +369,8 @@ router.post('/profile/avatar', authenticateToken, uploadAvatar.single('avatar'),
             [userId]
         );
         
-        // Aggiorna l'avatar nel database
+        // Aggiorna l'avatar nel database PRIMA di eliminare il vecchio file
+        // Questo garantisce che se qualcosa va storto, l'URL nel database sia sempre valido
         await query(
             `UPDATE users 
              SET avatar_url = ?, updated_at = CURRENT_TIMESTAMP 
@@ -376,11 +378,22 @@ router.post('/profile/avatar', authenticateToken, uploadAvatar.single('avatar'),
             [avatarUrl, userId]
         );
         
-        // Elimina il vecchio avatar se esiste
-        if (oldAvatarResult.rows[0]?.avatar_url) {
-            const oldAvatarPath = path.join(__dirname, '..', oldAvatarResult.rows[0].avatar_url);
-            if (fs.existsSync(oldAvatarPath)) {
-                fs.unlinkSync(oldAvatarPath);
+        // Elimina il vecchio avatar se esiste e è diverso dal nuovo
+        if (oldAvatarResult.rows[0]?.avatar_url && oldAvatarResult.rows[0].avatar_url !== avatarUrl) {
+            try {
+                const oldAvatarPath = path.join(__dirname, '..', oldAvatarResult.rows[0].avatar_url);
+                // Verifica che il percorso sia sicuro (dentro la directory uploads)
+                if (oldAvatarPath.startsWith(path.join(__dirname, '..', 'uploads'))) {
+                    if (fs.existsSync(oldAvatarPath)) {
+                        fs.unlinkSync(oldAvatarPath);
+                        console.log(`✅ Vecchio avatar eliminato: ${oldAvatarPath}`);
+                    }
+                } else {
+                    console.warn(`⚠️ Tentativo di eliminare avatar con percorso non sicuro: ${oldAvatarPath}`);
+                }
+            } catch (deleteError) {
+                // Non bloccare l'operazione se l'eliminazione del vecchio avatar fallisce
+                console.error('Errore durante l\'eliminazione del vecchio avatar:', deleteError);
             }
         }
         
