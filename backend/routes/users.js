@@ -1,7 +1,9 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { query } from '../database/db.js';
 import { authenticateToken } from '../middleware/auth.js';
+import emailService from '../services/emailService.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -535,14 +537,27 @@ router.put('/:id/approve', authenticateToken, async (req, res) => {
         }
 
         const { id } = req.params;
+        console.log(`🔍 [users.js] Approvazione utente ID: ${id}`);
 
-        // Verifica che l'utente esista e sia in attesa
+        // Verifica che l'utente esista e sia in attesa (email_verified o pending)
         const userResult = await query(
-            'SELECT id, username, email, first_name, last_name, status FROM users WHERE id = ?',
-            [id]
+            'SELECT id, username, email, first_name, last_name, status FROM users WHERE id = ? AND (status = ? OR status = ?)',
+            [id, 'email_verified', 'pending']
         );
 
         if (userResult.rows.length === 0) {
+            // Controlla quale status ha l'utente
+            const checkUser = await query(
+                'SELECT id, email, first_name, last_name, status FROM users WHERE id = ?',
+                [id]
+            );
+            if (checkUser.rows.length > 0) {
+                console.log(`❌ [users.js] Utente ${id} trovato ma con status: ${checkUser.rows[0].status}`);
+                return res.status(400).json({
+                    success: false,
+                    message: `L'utente non è in attesa di approvazione (status: ${checkUser.rows[0].status})`
+                });
+            }
             return res.status(404).json({
                 success: false,
                 message: 'Utente non trovato'
@@ -550,28 +565,110 @@ router.put('/:id/approve', authenticateToken, async (req, res) => {
         }
 
         const user = userResult.rows[0];
+        console.log(`✅ [users.js] Utente trovato: ${user.email}, ${user.first_name} ${user.last_name}, status: ${user.status}`);
 
-        if (user.status !== 'pending') {
+        // Genera username: prima lettera del nome + cognome@africaunita.it (lowercase, senza spazi)
+        const firstLetter = user.first_name ? user.first_name.charAt(0).toLowerCase() : '';
+        const lastName = user.last_name ? user.last_name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '') : '';
+        
+        if (!firstLetter || !lastName) {
+            console.error(`❌ [users.js] Errore: Nome o cognome mancante per utente ${user.email}`);
             return res.status(400).json({
                 success: false,
-                message: 'L\'utente non è in attesa di approvazione'
+                message: 'Nome e cognome sono obbligatori per generare le credenziali di accesso'
             });
         }
+        
+        let baseUsername = `${firstLetter}${lastName}@africaunita.it`;
+        console.log(`📧 [users.js] Username base generato: ${baseUsername}`);
+        
+        // Verifica se lo username esiste già e aggiungi un numero se necessario (escludendo utenti eliminati)
+        let counter = 1;
+        let loginUsername = baseUsername;
+        while (true) {
+            const existingUsername = await query(
+                'SELECT id FROM users WHERE username = ? AND id != ? AND status != ?',
+                [loginUsername, id, 'deleted']
+            );
+            if (existingUsername.rows.length === 0) {
+                break; // Username disponibile
+            }
+            // Se esiste già, aggiungi un numero prima di @africaunita.it
+            loginUsername = `${firstLetter}${lastName}${counter}@africaunita.it`;
+            counter++;
+        }
+        console.log(`✅ [users.js] Username finale: ${loginUsername}`);
 
-        // Approva l'utente
-        const result = await query(
-            `UPDATE users 
-             SET status = 'active', updated_at = CURRENT_TIMESTAMP 
-             WHERE id = ?`,
-            [id]
+        // Genera password temporanea sicura (12 caratteri: lettere maiuscole, minuscole, numeri)
+        const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+        const numbers = '0123456789';
+        const allChars = uppercase + lowercase + numbers;
+        
+        let password = '';
+        // Assicura almeno un carattere di ogni tipo
+        password += uppercase[Math.floor(Math.random() * uppercase.length)];
+        password += lowercase[Math.floor(Math.random() * lowercase.length)];
+        password += numbers[Math.floor(Math.random() * numbers.length)];
+        
+        // Completa la password con caratteri casuali
+        for (let i = password.length; i < 12; i++) {
+            password += allChars[Math.floor(Math.random() * allChars.length)];
+        }
+        
+        // Mescola la password
+        const loginPassword = password.split('').sort(() => Math.random() - 0.5).join('');
+        console.log(`🔑 [users.js] Password temporanea generata`);
+
+        // Hash della password
+        const saltRounds = 12;
+        const password_hash = await bcrypt.hash(loginPassword, saltRounds);
+        console.log(`✅ [users.js] Password hash generato`);
+
+        // Aggiorna utente con nuovo username (email di accesso), password e status
+        // L'email originale viene mantenuta per le notifiche
+        // Imposta last_login = NULL per forzare il cambio password al primo accesso
+        console.log(`💾 [users.js] Aggiornamento database per utente ${id} con username: ${loginUsername}`);
+        await query(
+            'UPDATE users SET username = ?, password_hash = ?, status = ?, last_login = NULL WHERE id = ?',
+            [loginUsername, password_hash, 'active', id]
         );
+        console.log(`✅ [users.js] Database aggiornato con successo`);
 
-        // TODO: Invia notifica email all'utente approvato
+        // Invia email di notifica all'utente con le credenziali
+        let emailSent = false;
+        console.log(`📧 [users.js] Invio email di approvazione a ${user.email} con credenziali`);
+        try {
+            emailSent = await emailService.sendApprovalEmail(
+                user.email,
+                `${user.first_name} ${user.last_name}`,
+                true, // approved
+                loginUsername,
+                loginPassword
+            );
+            
+            if (emailSent) {
+                console.log(`✅ [users.js] Email inviata con successo a ${user.email}`);
+            } else {
+                console.error(`⚠️ [users.js] Email di approvazione non inviata a ${user.email} (sendApprovalEmail ha restituito false)`);
+            }
+        } catch (emailError) {
+            console.error(`❌ [users.js] Errore durante l'invio dell'email di approvazione:`, emailError);
+            console.error(`   Stack:`, emailError.stack);
+            // L'utente è comunque approvato anche se l'email non viene inviata
+        }
 
         res.json({
             success: true,
-            message: 'Utente approvato con successo',
-            data: { user: { ...user, status: 'active' } }
+            message: `Utente approvato con successo${emailSent ? '. Email con credenziali inviata.' : '. Attenzione: email non inviata, ma le credenziali sono state salvate.'}`,
+            data: { 
+                user: { ...user, username: loginUsername, status: 'active' },
+                emailSent: emailSent,
+                credentials: {
+                    username: loginUsername,
+                    password: loginPassword
+                }
+            }
         });
     } catch (error) {
         console.error('Approve user error:', error);
