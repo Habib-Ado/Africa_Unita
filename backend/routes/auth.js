@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../database/db.js';
+import { authenticateToken } from '../middleware/auth.js';
 import { validateRegister, validateLogin } from '../middleware/validation.js';
 import emailService from '../services/emailService.js';
 import verificationService from '../services/verificationService.js';

@@ -2,13 +2,10 @@ import mysql from 'mysql2/promise';
 import { config } from '../config.js';
 
 // Configurazione del pool di connessioni MySQL - Railway ready
-const poolConfig = config.database.url 
-    ? {
-        uri: config.database.url,
-        ssl: false, // Railway MySQL non richiede SSL
-        connectionLimit: 20
-    }
-    : {
+// mysql2 accetta la stringa DATABASE_URL direttamente, NON come { uri: url }
+const pool = config.database.url
+    ? mysql.createPool(config.database.url, { connectionLimit: 20 })
+    : mysql.createPool({
         host: config.database.host,
         port: config.database.port,
         database: config.database.name,
@@ -16,9 +13,7 @@ const poolConfig = config.database.url
         password: config.database.password,
         ssl: false,
         connectionLimit: 20
-    };
-
-const pool = mysql.createPool(poolConfig);
+    });
 
 // Helper per eseguire query con retry
 export const query = async (text, params = [], retries = 3) => {
