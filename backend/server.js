@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { testConnection } from './database/db.js';
 import runRailwayMigration from './scripts/railway-migration.js';
+import createAdmin from './scripts/createAdmin.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -209,6 +210,17 @@ const startServer = async () => {
             }
         } else {
             console.log('ℹ️  Skipping Railway migration (not on Railway)');
+        }
+        
+        // Crea/aggiorna utente admin su Railway
+        if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PUBLIC_DOMAIN) {
+            console.log('👑 Creazione/aggiornamento utente admin...');
+            try {
+                await createAdmin();
+            } catch (error) {
+                console.log('⚠️  Warning creazione admin:', error.message);
+                // Continue anyway, admin might already exist
+            }
         }
         
         console.log('🌐 Starting HTTP server...');

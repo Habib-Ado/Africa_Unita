@@ -18,6 +18,7 @@
     "db:setup": "node scripts/createDatabase.js && node scripts/createTables.js",
     "db:seed": "node scripts/seedDatabaseMySQL.js",
     "db:reset-passwords": "node scripts/resetPasswords.js",
+    "db:create-admin": "node scripts/createAdmin.js",
     "test-connection": "node -e \"import('./database/db.js').then(db => db.testConnection())\""
   },
   "keywords": [
