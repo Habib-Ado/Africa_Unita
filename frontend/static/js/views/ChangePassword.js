@@ -1,6 +1,5 @@
+import { navigateTo, apiFetch } from "../index.js";
 import AbstractView from "./AbstractView.js";
-import { apiFetch } from "../utils/apiFetch.js";
-import { navigateTo } from "../utils/router.js";
 
 export default class ChangePassword extends AbstractView {
     constructor() {
