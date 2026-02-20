@@ -86,11 +86,20 @@ export default class extends AbstractView {
                         if (data?.data?.token) {
                             localStorage.setItem('auth_token', data.data.token)
                         }
-                        this.showSuccess('Login effettuato con successo! Reindirizzamento in corso...');
-                        setTimeout(() => {
-                            navigateTo("/");
-                            window.location.reload();
-                        }, 2000);
+                        
+                        // Se deve cambiare la password, reindirizza alla pagina di cambio password
+                        if (data?.data?.mustChangePassword) {
+                            this.showSuccess('Login effettuato! Devi cambiare la password al primo accesso.');
+                            setTimeout(() => {
+                                navigateTo("/change-password");
+                            }, 2000);
+                        } else {
+                            this.showSuccess('Login effettuato con successo! Reindirizzamento in corso...');
+                            setTimeout(() => {
+                                navigateTo("/");
+                                window.location.reload();
+                            }, 2000);
+                        }
                     } else {
                         if (data.field) {
                             // Errore specifico per un campo

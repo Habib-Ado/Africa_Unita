@@ -1,4 +1,5 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
 import { query } from '../database/db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import multer from 'multer';
@@ -246,6 +247,101 @@ router.put('/profile', authenticateToken, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Errore nell\'aggiornamento del profilo'
+        });
+    }
+});
+
+// PUT /api/users/change-password - Cambia password
+router.put('/change-password', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { current_password, new_password } = req.body;
+
+        if (!new_password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nuova password richiesta'
+            });
+        }
+
+        // Validazione nuova password
+        if (new_password.length < 8) {
+            return res.status(400).json({
+                success: false,
+                message: 'La nuova password deve essere di almeno 8 caratteri'
+            });
+        }
+
+        if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(new_password)) {
+            return res.status(400).json({
+                success: false,
+                message: 'La nuova password deve contenere almeno una lettera maiuscola, una minuscola e un numero'
+            });
+        }
+
+        // Recupera utente con password hash e last_login
+        const userResult = await query(
+            'SELECT password_hash, last_login FROM users WHERE id = ?',
+            [userId]
+        );
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Utente non trovato'
+            });
+        }
+
+        const user = userResult.rows[0];
+        const isFirstLogin = user.last_login === null;
+
+        // Se non è il primo accesso, verifica la password corrente
+        if (!isFirstLogin) {
+            if (!current_password) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Password corrente richiesta'
+                });
+            }
+
+            const isValidPassword = await bcrypt.compare(current_password, user.password_hash);
+            if (!isValidPassword) {
+                return res.status(401).json({
+                    success: false,
+                    message: 'Password corrente non corretta'
+                });
+            }
+        }
+
+        // Hash della nuova password
+        const saltRounds = 12;
+        const newPasswordHash = await bcrypt.hash(new_password, saltRounds);
+
+        // Aggiorna password e imposta last_login se è il primo accesso
+        if (isFirstLogin) {
+            await query(
+                'UPDATE users SET password_hash = ?, last_login = CURRENT_TIMESTAMP WHERE id = ?',
+                [newPasswordHash, userId]
+            );
+        } else {
+            await query(
+                'UPDATE users SET password_hash = ? WHERE id = ?',
+                [newPasswordHash, userId]
+            );
+        }
+
+        res.json({
+            success: true,
+            message: isFirstLogin 
+                ? 'Password impostata con successo! Ora puoi utilizzare la piattaforma.'
+                : 'Password cambiata con successo'
+        });
+
+    } catch (error) {
+        console.error('Change password error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Errore durante il cambio password'
         });
     }
 });

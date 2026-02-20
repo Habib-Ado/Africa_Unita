@@ -117,8 +117,9 @@ router.post('/approve-user/:userId', async (req, res) => {
 
             // Aggiorna utente con nuovo username (email di accesso), password e status
             // L'email originale viene mantenuta per le notifiche
+            // Imposta last_login = NULL per forzare il cambio password al primo accesso
             await query(
-                'UPDATE users SET username = ?, password_hash = ?, status = ? WHERE id = ?',
+                'UPDATE users SET username = ?, password_hash = ?, status = ?, last_login = NULL WHERE id = ?',
                 [loginUsername, password_hash, newStatus, userId]
             );
         } else {
@@ -238,8 +239,9 @@ router.post('/bulk-approve', async (req, res) => {
 
                         // Aggiorna utente con nuovo username (email di accesso), password e status
                         // L'email originale viene mantenuta per le notifiche
+                        // Imposta last_login = NULL per forzare il cambio password al primo accesso
                         await query(
-                            'UPDATE users SET username = ?, password_hash = ?, status = ? WHERE id = ?',
+                            'UPDATE users SET username = ?, password_hash = ?, status = ?, last_login = NULL WHERE id = ?',
                             [loginUsername, password_hash, newStatus, userId]
                         );
                     } else {

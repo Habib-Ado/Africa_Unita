@@ -3,6 +3,7 @@ import Login from "./views/Login.js";
 import Profile from "./views/Profile.js";
 import Register from "./views/Register.js";
 import ResetPassword from "./views/ResetPassword.js";
+import ChangePassword from "./views/ChangePassword.js";
 import Messages from "./views/Messages.js";
 import AdminUsers from "./views/AdminUsers.js";
 import AdminStats from "./views/AdminStats.js";
@@ -80,6 +81,11 @@ const router = async () => {
         {
             path: "/reset-password",
             view: ResetPassword
+        },
+        {
+            path: "/change-password",
+            view: ChangePassword,
+            requiresAuth: true
         },
         {
             path: "/verify-email",

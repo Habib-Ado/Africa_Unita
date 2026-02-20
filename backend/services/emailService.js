@@ -271,7 +271,7 @@ class EmailService {
                                     <p><small><strong>Nota:</strong> Usa questo username per accedere al sito. L'email ${userEmail} viene utilizzata solo per ricevere notifiche.</small></p>
                                 </div>
                                 <div class="warning">
-                                    <strong>⚠️ Importante:</strong> Questa è la password per il tuo primo accesso. Ti consigliamo di cambiarla dopo il primo login per motivi di sicurezza.
+                                    <strong>⚠️ Importante:</strong> Questa è la password temporanea per il tuo primo accesso. <strong>Dovrai cambiarla obbligatoriamente al primo login</strong> per motivi di sicurezza. Dopo aver cambiato la password, potrai utilizzare tutte le funzionalità della piattaforma.
                                 </div>
                                 <p>Puoi ora accedere alla piattaforma:</p>
                                 <a href="${process.env.CORS_ORIGIN || 'http://localhost:3000'}/login" class="button">🌍 Accedi a Africa Unita</a>

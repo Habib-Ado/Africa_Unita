@@ -147,7 +147,7 @@ router.post('/login', validateLogin, async (req, res) => {
 
         // Trova utente per username (che è l'email di accesso nel formato @africaunita.it)
         const result = await query(
-            'SELECT id, uuid, username, email, password_hash, first_name, last_name, role, status FROM users WHERE username = ?',
+            'SELECT id, uuid, username, email, password_hash, first_name, last_name, role, status, last_login FROM users WHERE username = ?',
             [email]
         );
 
@@ -185,11 +185,17 @@ router.post('/login', validateLogin, async (req, res) => {
             });
         }
 
-        // Aggiorna ultimo login
-        await query(
-            'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
-            [user.id]
-        );
+        // Verifica se è il primo accesso (last_login è NULL) - deve cambiare la password
+        const mustChangePassword = user.last_login === null;
+
+        // Aggiorna ultimo login solo se non è il primo accesso
+        // Se è il primo accesso, last_login rimane NULL finché non cambia la password
+        if (!mustChangePassword) {
+            await query(
+                'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
+                [user.id]
+            );
+        }
 
         // Genera token JWT
         const token = jwt.sign(
@@ -203,8 +209,14 @@ router.post('/login', validateLogin, async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Login effettuato con successo',
-            data: { user, token }
+            message: mustChangePassword 
+                ? 'Login effettuato con successo. Devi cambiare la password al primo accesso.'
+                : 'Login effettuato con successo',
+            data: { 
+                user, 
+                token,
+                mustChangePassword 
+            }
         });
 
     } catch (error) {
