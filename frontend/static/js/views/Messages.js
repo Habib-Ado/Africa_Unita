@@ -230,10 +230,18 @@ export default class extends AbstractView {
 
     async handleReply(e) {
         e.preventDefault();
+        if (this._sendingReply) return;
         const form = e.target;
         const receiverId = form.receiver_id.value;
         const subject = form.subject.value;
         const message = form.message.value;
+
+        this._sendingReply = true;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Invio...';
+        }
 
         try {
             const token = localStorage.getItem('auth_token');
@@ -284,6 +292,12 @@ export default class extends AbstractView {
         } catch (error) {
             console.error("Errore nell'invio del messaggio:", error);
             alert("Si è verificato un errore durante l'invio del messaggio");
+        } finally {
+            this._sendingReply = false;
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Invia messaggio';
+            }
         }
     }
 
@@ -608,8 +622,16 @@ export default class extends AbstractView {
     }
 
     async sendNewMessage() {
+        if (this._sendingNewMessage) return;
         const form = document.getElementById('new-message-form');
         if (!form) return;
+
+        this._sendingNewMessage = true;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Invio...';
+        }
 
         const formData = new FormData(form);
         const recipientId = formData.get('recipient_id');
@@ -661,6 +683,13 @@ export default class extends AbstractView {
         } catch (error) {
             console.error('Error sending message:', error);
             alert('Errore nell\'invio del messaggio');
+        } finally {
+            this._sendingNewMessage = false;
+            const btn = form?.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane"></i> Invia messaggio';
+            }
         }
     }
 
