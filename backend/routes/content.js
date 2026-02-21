@@ -309,7 +309,15 @@ router.post('/', authenticateToken, requireRole('moderator', 'admin'), upload.fi
             VALUES (?, ?, ?, ?, ?, ?)
         `, [title, content, content_type, authorId, featuredImageUrl, tagsArray]);
 
-        const contentId = contentResult.rows[0].id;
+        let contentId = contentResult.rows?.insertId;
+        if (contentId == null && contentResult.rows && !Array.isArray(contentResult.rows)) {
+            contentId = contentResult.rows.insertId;
+        }
+        if (contentId == null) {
+            const idResult = await query('SELECT LAST_INSERT_ID() as id', []);
+            const row = Array.isArray(idResult.rows) ? idResult.rows[0] : idResult.rows;
+            contentId = row?.id ?? row?.ID ?? row?.insertId ?? row?.insert_id;
+        }
 
         // Gestisci i file allegati
         if (req.files && req.files['files'] && req.files['files'].length > 0) {
@@ -324,7 +332,7 @@ router.post('/', authenticateToken, requireRole('moderator', 'admin'), upload.fi
         res.status(201).json({
             success: true,
             message: 'Contenuto creato con successo',
-            data: contentResult.rows[0]
+            data: { id: contentId, title, content_type, featured_image_url: featuredImageUrl, tags: tagsArray }
         });
     } catch (error) {
         console.error('Create content error:', error);

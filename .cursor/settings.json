@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "phantom-connect": {
+      "enabled": true
+    },
+    "figma": {
+      "enabled": true
+    }
+  }
+}
