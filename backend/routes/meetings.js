@@ -604,6 +604,11 @@ router.get('/user/:userId/stats', authenticateToken, async (req, res) => {
                 WHERE user_id = ? AND status = 'absent'
             `, [userId]);
             
+            const meetingsJustified = await query(`
+                SELECT COUNT(DISTINCT meeting_id) as count FROM meeting_attendance 
+                WHERE user_id = ? AND status IN ('justified', 'excused')
+            `, [userId]);
+            
             const totalPenaltyAmount = await query(`
                 SELECT COALESCE(SUM(amount), 0) as total FROM meeting_penalties 
                 WHERE user_id = ? AND status = 'pending'
@@ -616,7 +621,7 @@ router.get('/user/:userId/stats', authenticateToken, async (req, res) => {
                     total_meetings: meetingsAttended.rows[0]?.count || 0,
                     meetings_present: meetingsPresent.rows[0]?.count || 0,
                     meetings_absent: meetingsAbsent.rows[0]?.count || 0,
-                    meetings_excused: 0,
+                    meetings_excused: meetingsJustified.rows[0]?.count || 0,
                     total_penalty_amount: totalPenaltyAmount.rows[0]?.total || 0,
                     pending_penalties_count: 0
                 }]
@@ -647,16 +652,25 @@ router.get('/user/:userId/stats', authenticateToken, async (req, res) => {
             LIMIT 10
         `, [userId]);
         
+        const raw = statsResult.rows[0];
+        const stats = raw ? {
+            total_present: raw.meetings_present ?? raw.total_present ?? 0,
+            total_absent: raw.meetings_absent ?? raw.total_absent ?? 0,
+            total_justified: raw.meetings_excused ?? raw.meetings_justified ?? raw.total_justified ?? 0,
+            total_penalty_amount: raw.total_penalty_amount ?? 0,
+            pending_penalties: raw.pending_penalties_count ?? 0
+        } : {
+            total_present: 0,
+            total_absent: 0,
+            total_justified: 0,
+            total_penalty_amount: 0,
+            pending_penalties: 0
+        };
+
         res.json({
             success: true,
             data: {
-                stats: statsResult.rows[0] || {
-                    total_present: 0,
-                    total_absent: 0,
-                    total_justified: 0,
-                    pending_penalties: 0,
-                    total_penalty_amount: 0
-                },
+                stats,
                 penalties: penaltiesResult.rows,
                 recent_attendance: recentAttendanceResult.rows
             }

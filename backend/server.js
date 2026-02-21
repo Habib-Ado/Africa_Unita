@@ -24,6 +24,7 @@ import meetingRoutes from './routes/meetings.js';
 import loanRoutes from './routes/loans.js';
 import adminRoutes from './routes/admin.js';
 import statsRoutes from './routes/stats.js';
+import { uploadBase } from './utils/uploadPath.js';
 
 // Configurazione
 dotenv.config();
@@ -94,8 +95,8 @@ app.use('/api/stats', statsRoutes);
 const frontendPath = path.join(__dirname, '../frontend');
 app.use('/static', express.static(path.join(frontendPath, 'static')));
 
-// Serve uploaded files (images, documents, etc.)
-const uploadsPath = path.join(__dirname, 'uploads');
+// Serve uploaded files - usa UPLOAD_DIR per persistenza (es. Railway Volume: UPLOAD_DIR=/data)
+const uploadsPath = uploadBase;
 app.use('/uploads', express.static(uploadsPath, {
     // Aggiungi headers per la cache degli avatar (1 anno)
     maxAge: '1y',

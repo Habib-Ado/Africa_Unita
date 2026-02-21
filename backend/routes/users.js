@@ -8,6 +8,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { uploadBase } from '../utils/uploadPath.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,7 +16,7 @@ const __dirname = path.dirname(__filename);
 // Configurazione Multer per avatar
 const avatarStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../uploads/avatars');
+        const uploadDir = path.join(uploadBase, 'avatars');
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
@@ -381,9 +382,10 @@ router.post('/profile/avatar', authenticateToken, uploadAvatar.single('avatar'),
         // Elimina il vecchio avatar se esiste e è diverso dal nuovo
         if (oldAvatarResult.rows[0]?.avatar_url && oldAvatarResult.rows[0].avatar_url !== avatarUrl) {
             try {
-                const oldAvatarPath = path.join(__dirname, '..', oldAvatarResult.rows[0].avatar_url);
-                // Verifica che il percorso sia sicuro (dentro la directory uploads)
-                if (oldAvatarPath.startsWith(path.join(__dirname, '..', 'uploads'))) {
+                const relPath = oldAvatarResult.rows[0].avatar_url.replace(/^\/uploads\//, '').replace(/\.\./g, '');
+                const oldAvatarPath = path.resolve(uploadBase, relPath);
+                const safeBase = path.resolve(uploadBase);
+                if (oldAvatarPath.startsWith(safeBase) && oldAvatarPath.length > safeBase.length) {
                     if (fs.existsSync(oldAvatarPath)) {
                         fs.unlinkSync(oldAvatarPath);
                         console.log(`✅ Vecchio avatar eliminato: ${oldAvatarPath}`);
