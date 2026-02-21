@@ -278,8 +278,12 @@ router.post('/', authenticateToken, requireRole('moderator', 'admin'), upload.fi
     { name: 'files', maxCount: 10 }
 ]), async (req, res) => {
     try {
-        const { title, content, content_type, tags } = req.body;
+        const { title, content, content_type, tags, status } = req.body;
         const authorId = req.user.id;
+
+        // Status: draft o published (default published per visibilità in home)
+        const contentStatus = (status === 'draft' || status === 'published') ? status : 'published';
+        const publishedAt = contentStatus === 'published' ? new Date() : null;
 
         // Valida i dati richiesti
         if (!title || !content_type) {
@@ -305,9 +309,9 @@ router.post('/', authenticateToken, requireRole('moderator', 'admin'), upload.fi
 
         // Crea il contenuto
         const contentResult = await query(`
-            INSERT INTO site_content (title, content, content_type, author_id, featured_image_url, tags)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `, [title, content, content_type, authorId, featuredImageUrl, tagsArray]);
+            INSERT INTO site_content (title, content, content_type, author_id, featured_image_url, tags, status, published_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, [title, content, content_type, authorId, featuredImageUrl, tagsArray, contentStatus, publishedAt]);
 
         let contentId = contentResult.rows?.insertId;
         if (contentId == null && contentResult.rows && !Array.isArray(contentResult.rows)) {
