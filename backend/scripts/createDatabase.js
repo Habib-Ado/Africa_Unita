@@ -7,21 +7,16 @@ async function createDatabase() {
     try {
         console.log('🔌 Connexion au serveur MySQL...');
         
-        // Connexion sans spécifier la base de données - Railway compatible
-        const connectionConfig = config.database.url 
-            ? {
-                uri: config.database.url,
-                ssl: false
-            }
-            : {
+        // Connexion sans database - Railway compatible (mysql2 accetta URL string direttamente)
+        connection = config.database.url
+            ? await mysql.createConnection(config.database.url)
+            : await mysql.createConnection({
                 host: config.database.host,
                 port: config.database.port,
                 user: config.database.user,
                 password: config.database.password,
                 ssl: false
-            };
-
-        connection = await mysql.createConnection(connectionConfig);
+            });
         console.log('✅ Connecté au serveur MySQL');
 
         // Créer la base de données si elle n'existe pas

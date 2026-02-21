@@ -9,11 +9,8 @@ async function seedDatabase() {
         console.log('🔌 Connexion à la base de données MySQL...');
         
         // Utilise la configuration depuis config.js
-        const connectionConfig = config.database.url 
-            ? {
-                uri: config.database.url,
-                ssl: false
-            }
+        const connectionConfig = config.database.url
+            ? config.database.url
             : {
                 host: config.database.host,
                 port: config.database.port,
@@ -36,7 +33,7 @@ async function seedDatabase() {
         console.log('👥 Création des utilisateurs de test...');
         await connection.execute(`
             INSERT INTO users (username, email, password_hash, first_name, last_name, role, status, country_of_origin, bio) VALUES
-            ('admin', 'admin@africaunita.it', ?, 'Admin', 'Sistema', 'admin', 'active', NULL, 'Administrateur du système'),
+            ('admin@africaunita.it', 'africaunita02@gmail.com', ?, 'Admin', 'Sistema', 'admin', 'active', NULL, 'Administrateur du système'),
             ('president', 'president@africaunita.it', ?, 'Jean', 'President', 'president', 'active', 'Sénégal', 'Président de l''association'),
             ('moderator', 'moderator@africaunita.it', ?, 'Fatou', 'Diop', 'moderator', 'active', 'Mali', 'Modératrice de contenu'),
             ('treasurer', 'treasurer@africaunita.it', ?, 'Amadou', 'Kone', 'treasurer', 'active', 'Côte d''Ivoire', 'Trésorier de l''association'),
@@ -48,7 +45,7 @@ async function seedDatabase() {
 
         // Récupération des IDs utilisateurs
         const [users] = await connection.execute('SELECT id, username FROM users');
-        const adminUser = users.find(u => u.username === 'admin');
+        const adminUser = users.find(u => u.username === 'admin@africaunita.it');
         const moderatorUser = users.find(u => u.username === 'moderator');
         const user1 = users.find(u => u.username === 'user1');
         const marioUser = users.find(u => u.username === 'mario_rossi');
@@ -116,7 +113,7 @@ async function seedDatabase() {
         console.log('✅ Données de test insérées avec succès !');
         console.log('');
         console.log('👤 Comptes de test créés :');
-        console.log('   - Admin      : admin@africaunita.it / password123');
+        console.log('   - Admin      : admin@africaunita.it (username) / password123');
         console.log('   - Président  : president@africaunita.it / password123');
         console.log('   - Modérateur : moderator@africaunita.it / password123');
         console.log('   - Trésorier  : treasurer@africaunita.it / password123');

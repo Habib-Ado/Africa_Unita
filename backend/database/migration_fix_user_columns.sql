@@ -1,20 +1,44 @@
 -- ============================================
 -- MIGRAZIONI DATABASE - Africa Unita
--- Eseguire i blocchi UNO ALLA VOLTA
--- Se un comando dà errore "already exists" o "duplicate", ignorare e passare al successivo
+-- Per database ESISTENTI (non per nuovo install da schema.sql)
+-- ============================================
+--
+-- ISTRUZIONI:
+-- - Eseguire in DBeaver con "Execute SQL Script" (Ctrl+X)
+-- - Se un comando dà "already exists", "duplicate", "Unknown column": ignorare
+-- - Blocco 7 (DELIMITER): eseguire separatamente nel client MySQL interattivo se serve
+--
+-- MESSAGGI ATTESI (ignorabili):
+-- - "Unknown column" = DB già aggiornato
+-- - "Duplicate column/key" = migrazione già applicata
+-- - "FUNCTION does not exist" = prima esecuzione
 -- ============================================
 
--- 1) Rinomina colonne name/surname -> first_name/last_name (se esistono)
--- Errore "Unknown column" = le colonne non esistono, ignorare
-ALTER TABLE users CHANGE COLUMN name first_name VARCHAR(100);
-ALTER TABLE users CHANGE COLUMN surname last_name VARCHAR(100);
+-- 1) Rinomina colonne name/surname -> first_name/last_name (solo se esistono)
+-- Salta se la tabella ha già first_name/last_name (es. da schema.sql)
+DROP PROCEDURE IF EXISTS _migrate_rename_user_cols;
+DELIMITER //
+CREATE PROCEDURE _migrate_rename_user_cols()
+BEGIN
+    IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+               WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'name') THEN
+        ALTER TABLE users CHANGE COLUMN name first_name VARCHAR(100);
+    END IF;
+    IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+               WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'surname') THEN
+        ALTER TABLE users CHANGE COLUMN surname last_name VARCHAR(100);
+    END IF;
+END //
+DELIMITER ;
+CALL _migrate_rename_user_cols();
+DROP PROCEDURE _migrate_rename_user_cols;
 
--- 2) Aggiorna ENUM status per includere email_verified
+-- 2) Aggiorna ENUM status
 ALTER TABLE users MODIFY COLUMN status ENUM(
     'active', 'inactive', 'blocked', 'unblocked', 'suspended', 'pending', 'email_verified', 'deleted'
 ) DEFAULT 'pending' NOT NULL;
 
--- 3) Tabella email_verifications (se non esiste)
+-- 3) Tabella email_verifications
 CREATE TABLE IF NOT EXISTS email_verifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -24,15 +48,20 @@ CREATE TABLE IF NOT EXISTS email_verifications (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 4) Colonna last_activity per sessioni con timeout
--- Errore "Duplicate column" = già esiste, ignorare
+-- 4) Colonna last_activity per timeout sessione
 ALTER TABLE users ADD COLUMN last_activity TIMESTAMP NULL DEFAULT NULL;
 
--- 5) Indice su last_activity
--- Errore "Duplicate key" = già esiste, ignorare
+-- 5) Indice last_activity
 CREATE INDEX idx_users_last_activity ON users(last_activity);
 
--- 6) VIEW user_meeting_stats per statistiche riunioni
+-- 5b) Colonne loans per reject_loan e confirm_installment_payment
+ALTER TABLE loans ADD COLUMN rejected_by INT NULL AFTER approved_at;
+ALTER TABLE loans ADD COLUMN rejected_at TIMESTAMP NULL AFTER rejected_by;
+ALTER TABLE loans ADD COLUMN rejection_notes TEXT NULL AFTER rejected_at;
+ALTER TABLE loans ADD COLUMN completed_at TIMESTAMP NULL AFTER rejection_notes;
+ALTER TABLE loans ADD CONSTRAINT fk_loans_rejected_by FOREIGN KEY (rejected_by) REFERENCES users(id) ON DELETE SET NULL;
+
+-- 6) VIEW user_meeting_stats
 DROP VIEW IF EXISTS user_meeting_stats;
 CREATE VIEW user_meeting_stats AS
 SELECT 
@@ -51,7 +80,7 @@ LEFT JOIN meeting_penalties mp ON u.id = mp.user_id
 WHERE u.status != 'deleted'
 GROUP BY u.id;
 
--- 7) Funzione check_member_payment_status (aggiornata per pagamenti in sospeso)
+-- 7) Funzione check_member_payment_status (con payment_status)
 DROP FUNCTION IF EXISTS check_member_payment_status;
 DELIMITER //
 CREATE FUNCTION check_member_payment_status(user_id_param INT) 

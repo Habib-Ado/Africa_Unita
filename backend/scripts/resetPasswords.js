@@ -3,11 +3,8 @@ import mysql from 'mysql2/promise';
 import { config } from '../config.js';
 
 async function resetPasswords() {
-    const connectionConfig = config.database.url 
-        ? {
-            uri: config.database.url,
-            ssl: false
-        }
+    const connectionConfig = config.database.url
+        ? config.database.url
         : {
             host: config.database.host,
             port: config.database.port,
@@ -33,13 +30,13 @@ async function resetPasswords() {
 
         // Aggiorna le password degli utenti di test
         const users = [
-            { username: 'admin', email: 'admin@africaunita.it' },
-            { username: 'president', email: 'president@africaunita.it' },
-            { username: 'moderator', email: 'moderator@africaunita.it' },
-            { username: 'treasurer', email: 'treasurer@africaunita.it' },
-            { username: 'user1', email: 'user@africaunita.it' },
-            { username: 'mario_rossi', email: 'mario@test.com' },
-            { username: 'ibrahim_sy', email: 'ibrahim@test.com' }
+            { username: 'admin@africaunita.it', email: 'africaunita02@gmail.com' },
+            { username: 'president@africaunita.it', email: 'president@africaunita.it' },
+            { username: 'moderator@africaunita.it', email: 'moderator@africaunita.it' },
+            { username: 'treasurer@africaunita.it', email: 'treasurer@africaunita.it' },
+            { username: 'user@africaunita.it', email: 'user@africaunita.it' },
+            { username: 'mario@africaunita.it', email: 'mario@africaunita.it' },
+            { username: 'ibrahim@africaunita.it', email: 'ibrahim@africaunita.it' }
         ];
 
         for (const user of users) {
@@ -67,8 +64,8 @@ async function resetPasswords() {
         console.log('═══════════════════════════════════════════════════');
         console.log('');
         console.log('👑 ADMIN:');
-        console.log('   Username: admin');
-        console.log('   Email: admin@africaunita.it');
+        console.log('   Username: admin@africaunita.it');
+        console.log('   Email: africaunita02@gmail.com');
         console.log('   Password: password123');
         console.log('');
         console.log('👑 PRESIDENT:');

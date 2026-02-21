@@ -1,5 +1,17 @@
 -- Schéma correct pour Africa Unita
 -- Ce fichier correspond aux colonnes utilisées dans le code
+-- Eseguibile da zero: DROP + CREATE. Per database esistenti usare migration_fix_user_columns.sql
+-- In DBeaver: usare "Execute SQL Script" (Ctrl+X), oppure eseguire un blocco alla volta
+--
+-- MESSAGGI ATTESI AL PRIMO RUN (da ignorare):
+-- - "Integer display width deprecated" = avviso MySQL 8, non influisce
+-- - "Unknown table loans_with_user" / "FUNCTION does not exist" = DROP su oggetti non ancora creati
+-- - "Table email_verifications already exists" = se lo script viene rieseguito
+
+SET FOREIGN_KEY_CHECKS = 0;
+-- Su DB nuovo: ignora eventuale warning "Unknown table"
+DROP VIEW IF EXISTS loans_with_user;
+-- user_meeting_stats è in migration_fix_user_columns.sql, non qui
 
 DROP TABLE IF EXISTS meeting_penalties;
 DROP TABLE IF EXISTS meeting_attendance;
@@ -158,7 +170,7 @@ CREATE TABLE comments (
     user_id INT,
     content TEXT NOT NULL,
     parent_comment_id INT,
-    is_approved TINYINT(1) DEFAULT 1,
+    is_approved TINYINT DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
@@ -175,7 +187,7 @@ CREATE TABLE notifications (
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     link VARCHAR(500),
-    is_read TINYINT(1) DEFAULT 0,
+    is_read TINYINT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -232,6 +244,10 @@ CREATE TABLE loans (
     status ENUM('pending', 'approved', 'active', 'completed', 'cancelled', 'rejected') DEFAULT 'pending' NOT NULL,
     approved_by INT,
     approved_at TIMESTAMP NULL,
+    rejected_by INT,
+    rejected_at TIMESTAMP NULL,
+    rejection_notes TEXT,
+    completed_at TIMESTAMP NULL,
     start_date DATE,
     end_date DATE,
     total_installments INT DEFAULT 10 NOT NULL,
@@ -243,7 +259,8 @@ CREATE TABLE loans (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT check_installments CHECK (total_installments > 0 AND total_installments <= 12),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (rejected_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Table loan_installments
@@ -315,24 +332,12 @@ CREATE TABLE meeting_penalties (
     FOREIGN KEY (meeting2_id) REFERENCES meetings(id) ON DELETE CASCADE
 );
 
--- Creazione tabella email_verifications (necessaria per la verifica email alla registrazione)
--- Eseguire questo script sul database Railway se la tabella non esiste
-
-CREATE TABLE IF NOT EXISTS email_verifications (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    token VARCHAR(255) UNIQUE NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-
 -- ============================================
 -- FUNCTIONS AND PROCEDURES
 -- ============================================
 
 -- Function to generate monthly fees for all active members
+DROP FUNCTION IF EXISTS generate_monthly_fees;
 DELIMITER //
 CREATE FUNCTION generate_monthly_fees(target_date DATE) 
 RETURNS JSON
@@ -341,14 +346,13 @@ DETERMINISTIC
 BEGIN
     DECLARE done INT DEFAULT FALSE;
     DECLARE user_id_var INT;
+    DECLARE fees_generated INT DEFAULT 0;
+    DECLARE total_amount DECIMAL(10,2) DEFAULT 0;
+    DECLARE result JSON;
     DECLARE user_cursor CURSOR FOR 
         SELECT id FROM users 
         WHERE status = 'active' AND role != 'admin';
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
-    
-    DECLARE fees_generated INT DEFAULT 0;
-    DECLARE total_amount DECIMAL(10,2) DEFAULT 0;
-    DECLARE result JSON;
     
     OPEN user_cursor;
     
@@ -386,27 +390,8 @@ BEGIN
 END //
 DELIMITER ;
 
--- Aggiorna l'ENUM della colonna status per includere 'email_verified'
--- Eseguire questo script sul database Railway
-
--- Prima verifica quali valori sono attualmente nell'ENUM
--- SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS 
--- WHERE TABLE_SCHEMA = 'railway' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'status';
-
--- Modifica l'ENUM per includere tutti i valori necessari
-ALTER TABLE users 
-MODIFY COLUMN status ENUM(
-    'active', 
-    'inactive', 
-    'blocked', 
-    'unblocked', 
-    'suspended', 
-    'pending', 
-    'email_verified', 
-    'deleted'
-) DEFAULT 'pending' NOT NULL;
-
 -- Function to check member payment status
+DROP FUNCTION IF EXISTS check_member_payment_status;
 DELIMITER //
 CREATE FUNCTION check_member_payment_status(user_id_param INT) 
 RETURNS JSON
@@ -453,6 +438,7 @@ END //
 DELIMITER ;
 
 -- Function to confirm fee payment
+DROP FUNCTION IF EXISTS confirm_fee_payment;
 DELIMITER //
 CREATE FUNCTION confirm_fee_payment(fee_id INT, treasurer_id INT) 
 RETURNS JSON
@@ -494,6 +480,7 @@ END //
 DELIMITER ;
 
 -- Function to approve loan
+DROP FUNCTION IF EXISTS approve_loan;
 DELIMITER //
 CREATE FUNCTION approve_loan(loan_id INT, treasurer_id INT, start_date DATE) 
 RETURNS JSON
@@ -542,6 +529,7 @@ END //
 DELIMITER ;
 
 -- Function to reject loan
+DROP FUNCTION IF EXISTS reject_loan;
 DELIMITER //
 CREATE FUNCTION reject_loan(loan_id INT, treasurer_id INT, notes TEXT) 
 RETURNS JSON
@@ -577,6 +565,7 @@ END //
 DELIMITER ;
 
 -- Function to confirm installment payment
+DROP FUNCTION IF EXISTS confirm_installment_payment;
 DELIMITER //
 CREATE FUNCTION confirm_installment_payment(installment_id INT, treasurer_id INT, payment_method VARCHAR(50), notes TEXT) 
 RETURNS JSON
@@ -630,6 +619,7 @@ END //
 DELIMITER ;
 
 -- Function to update overdue installments
+DROP FUNCTION IF EXISTS update_overdue_installments;
 DELIMITER //
 CREATE FUNCTION update_overdue_installments() 
 RETURNS INT
@@ -650,6 +640,7 @@ END //
 DELIMITER ;
 
 -- Function to get user loan stats
+DROP FUNCTION IF EXISTS get_user_loan_stats;
 DELIMITER //
 CREATE FUNCTION get_user_loan_stats(user_id_param INT) 
 RETURNS JSON
@@ -714,6 +705,7 @@ DELIMITER ;
 -- ============================================
 
 -- View to get loans with user information
+DROP VIEW IF EXISTS loans_with_user;
 CREATE VIEW loans_with_user AS
 SELECT 
     l.*,
@@ -725,3 +717,4 @@ SELECT
 FROM loans l
 LEFT JOIN users u ON l.user_id = u.id;
 
+SET FOREIGN_KEY_CHECKS = 1;

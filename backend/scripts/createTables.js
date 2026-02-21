@@ -17,12 +17,8 @@ async function createTables() {
     try {
         console.log('🔌 Connexion à MySQL...');
         
-        const connectionConfig = config.database.url 
-            ? {
-                uri: config.database.url,
-                ssl: false,
-                multipleStatements: true
-            }
+        const connectionConfig = config.database.url
+            ? config.database.url
             : {
                 host: config.database.host,
                 port: config.database.port,

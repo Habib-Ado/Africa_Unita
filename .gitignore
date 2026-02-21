@@ -1,0 +1,47 @@
+# ============================================
+# Africa Unita - .gitignore (sicurezza commit)
+# ============================================
+
+# --- Variabili d'ambiente (NON committare mai) ---
+.env
+.env.*
+!.env.example
+
+# --- Dipendenze ---
+node_modules/
+
+# --- File caricati dagli utenti ---
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# --- Log e file temporanei ---
+*.log
+npm-debug.log*
+logs/
+
+# --- Sistema operativo ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- IDE / Editor ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Build / Output ---
+dist/
+build/
+*.tsbuildinfo
+
+# --- Coverage e test ---
+coverage/
+.nyc_output/
+
+# --- File sensibili ---
+*.pem
+*.key
+secrets/
+*.secret
