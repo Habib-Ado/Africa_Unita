@@ -13,19 +13,14 @@ Sito web per l'associazione Africa Unita, dedicata al supporto per migranti afri
    - Seleziona il repository `Africa_Unita`
 
 3. **Configura Environment Variables** nel Railway dashboard:
-   ```env
-   DATABASE_URL=mysql://root:SLBQYMBhSReyvReKHdgozPCzQrEAKqyx@hopper.proxy.rlwy.net:38226/railway
-   JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
-   NODE_ENV=production
-   ```
+   - `DATABASE_URL` – Copia da Railway → MySQL → Connect (variabile fornita automaticamente)
+   - `JWT_SECRET` – Genera con `npm run db:generate-secrets` (non usare valori di esempio)
+   - `NODE_ENV` – `production`
 
 4. **Setup Database** (dopo il primo deploy):
    - Nel Railway console: `cd backend && npm run db:setup && npm run db:seed`
 
-5. **Test Login**:
-   - **URL**: `https://your-app-name.railway.app`
-   - **Email**: admin@africaunita.it
-   - **Password**: password123
+5. **Test**: L'admin viene creato automaticamente al primo avvio. Le credenziali sono nel dashboard Railway o nelle variabili configurate.
 
 ## 💻 Sviluppo Locale
 
@@ -46,16 +41,8 @@ cd backend
 npm install
 
 # 3. Configura variabili d'ambiente
-# Crea file .env nella cartella backend con:
-PORT=3000
-NODE_ENV=development
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=africa_unita_db
-DB_USER=root
-DB_PASSWORD=your_password_here
-JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
-CORS_ORIGIN=http://localhost:3000
+cp .env.example .env
+# Modifica .env con i tuoi valori (non committare mai .env)
 
 # 4. Setup database locale
 npm run db:setup
@@ -70,9 +57,7 @@ npm run dev
 - **Health Check**: http://localhost:3000/health
 
 ### Credenziali di Test
-- **Admin**: admin@africaunita.it / password123
-- **Moderatore**: moderator@africaunita.it / password123
-- **Tesoriere**: treasurer@africaunita.it / password123
+Dopo `npm run db:seed`, le credenziali sono mostrate in console. Per reset: `npm run db:reset-passwords`
 
 ## 📋 Funzionalità
 
@@ -116,6 +101,7 @@ npm run test-connection # Testa connessione database
 
 ## 🔒 Sicurezza
 
+- ⚠️ **Non committare mai** file `.env` o credenziali (sono in `.gitignore`)
 - ✅ Password hashate con bcryptjs
 - ✅ JWT per autenticazione
 - ✅ Helmet.js per security headers
@@ -133,15 +119,10 @@ Railway rileva automaticamente:
 - ✅ `package.json` - Dipendenze Node.js
 
 ### Environment Variables Railway
-```env
-# Obbligatorie
-DATABASE_URL=mysql://user:pass@host:port/database
-JWT_SECRET=your_super_secret_jwt_key
-NODE_ENV=production
-
-# Opzionali
-CORS_ORIGIN=https://your-app.railway.app
-```
+Configura nel dashboard Railway (o tramite variabili private):
+- `DATABASE_URL` – fornita da Railway MySQL
+- `JWT_SECRET` – genera con `npm run db:generate-secrets`
+- `NODE_ENV=production`
 
 ### Database Setup su Railway
 Dopo il deploy, nel Railway console:

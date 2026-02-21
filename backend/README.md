@@ -33,34 +33,14 @@ npm install
 
 ## ⚙️ Configurazione
 
-1. Crea un file `.env` nella root del backend:
+1. Crea il file `.env`:
 ```bash
-cp config.example.env .env
+cp .env.example .env
 ```
 
-2. Modifica il file `.env` con le tue configurazioni:
+2. Modifica `.env` con le tue configurazioni. **Non committare mai `.env`** (contiene dati sensibili).
 
-```env
-# Server Configuration
-PORT=3000
-NODE_ENV=development
-
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=africa_unita_db
-DB_USER=root
-DB_PASSWORD=your_password_here
-
-# JWT Configuration
-JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
-JWT_EXPIRES_IN=7d
-
-# CORS Configuration
-CORS_ORIGIN=http://localhost:8080
-```
-
-> ⚠️ **IMPORTANTE**: Cambia `JWT_SECRET` con una chiave segreta sicura in produzione!
+3. Genera un JWT_SECRET sicuro: `npm run db:generate-secrets`
 
 ## 🗄️ Setup Database
 
@@ -81,15 +61,7 @@ Questo script:
 npm run db:seed
 ```
 
-Questo crea:
-- 3 utenti di test (admin, mario_rossi, fatou_diop)
-- 5 posts di esempio
-- 2 messaggi di test
-
-**Account di test creati:**
-- **Admin**: admin@africaunita.org / Password123!
-- **User 1**: mario@test.com / Password123!
-- **User 2**: fatou@test.com / Password123!
+Questo crea utenti di test, posts e messaggi di esempio. Le credenziali vengono mostrate in console al termine dello script.
 
 ## 🚀 Avvio Server
 
@@ -157,7 +129,7 @@ Registra un nuovo utente.
 {
   "username": "mario_rossi",
   "email": "mario@example.com",
-  "password": "Password123!",
+  "password": "tua_password_sicura",
   "first_name": "Mario",
   "last_name": "Rossi",
   "phone": "+39 123 456 7890",
@@ -185,13 +157,13 @@ Registra un nuovo utente.
 ```
 
 #### POST /api/auth/login
-Login utente.
+Login utente (usa `username` per l'accesso).
 
 **Body:**
 ```json
 {
-  "email": "mario@example.com",
-  "password": "Password123!"
+  "username": "esempio@africaunita.it",
+  "password": "tua_password"
 }
 ```
 
@@ -246,8 +218,8 @@ Reset password con token.
 **Body:**
 ```json
 {
-  "token": "reset_token_here",
-  "password": "NewPassword123!"
+  "token": "token_reset_ricevuto_email",
+  "password": "nuova_password"
 }
 ```
 
@@ -278,8 +250,8 @@ Cambia password (protetta).
 **Body:**
 ```json
 {
-  "current_password": "OldPassword123!",
-  "new_password": "NewPassword123!"
+  "current_password": "password_attuale",
+  "new_password": "nuova_password"
 }
 ```
 
@@ -457,9 +429,9 @@ post_category: 'alloggio' | 'lavoro' | 'formazione' | 'servizi' | 'eventi' | 'al
 
 ## 🚀 Deploy in Produzione
 
-1. Imposta `NODE_ENV=production` nel file `.env`
-2. Genera un `JWT_SECRET` sicuro
-3. Configura il database MySQL remoto (es. Railway MySQL)
+1. Imposta `NODE_ENV=production`
+2. Genera `JWT_SECRET` con `npm run db:generate-secrets` (non usare valori di esempio)
+3. Configura il database remoto (Railway fornisce `DATABASE_URL`)
 4. Usa un process manager come PM2:
 
 ```bash
