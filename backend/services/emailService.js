@@ -102,11 +102,19 @@ class EmailService {
         };
 
         try {
+            this.initializeTransporter();
+            if (!this.transporter) {
+                console.error('❌ Email transporter non inizializzato. Imposta EMAIL_USER e EMAIL_PASSWORD nelle variabili d\'ambiente (Railway: Project > Variables)');
+                return false;
+            }
             await this.transporter.sendMail(mailOptions);
             console.log(`✅ Email di verifica inviata a: ${userEmail}`);
             return true;
         } catch (error) {
             console.error('❌ Errore invio email di verifica:', error);
+            if (error.code === 'EAUTH') {
+                console.error('⚠️ Per Gmail usa una "App Password" (non la password normale): https://myaccount.google.com/apppasswords');
+            }
             return false;
         }
     }
@@ -180,6 +188,11 @@ class EmailService {
         };
 
         try {
+            this.initializeTransporter();
+            if (!this.transporter) {
+                console.error('❌ Email transporter non inizializzato. Imposta EMAIL_USER e EMAIL_PASSWORD nelle variabili d\'ambiente (Railway: Project > Variables)');
+                return false;
+            }
             await this.transporter.sendMail(mailOptions);
             console.log(`✅ Notifica admin inviata per nuovo utente: ${newUser.email}`);
             return true;
@@ -304,8 +317,9 @@ class EmailService {
         };
 
         try {
+            this.initializeTransporter();
             if (!this.transporter) {
-                console.error('❌ Email transporter non inizializzato. Verifica EMAIL_USER e EMAIL_PASSWORD nelle variabili d\'ambiente.');
+                console.error('❌ Email transporter non inizializzato. Imposta EMAIL_USER e EMAIL_PASSWORD nelle variabili d\'ambiente (Railway: Project > Variables).');
                 return false;
             }
             
@@ -348,8 +362,9 @@ class EmailService {
             return false;
         }
 
+        this.initializeTransporter();
         if (!this.transporter) {
-            console.error('❌ Transporter email non inizializzato');
+            console.error('❌ Transporter email non inizializzato. Imposta EMAIL_USER e EMAIL_PASSWORD nelle variabili d\'ambiente (Railway: Project > Variables).');
             return false;
         }
 

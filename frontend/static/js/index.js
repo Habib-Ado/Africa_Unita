@@ -16,6 +16,7 @@ import MyPosts from "./views/MyPosts.js";
 import Meetings from "./views/Meetings.js";
 import MyLoans from "./views/MyLoans.js";
 import EmailVerification from "./views/EmailVerification.js";
+import { initInactivityLogout } from "./inactivityLogout.js";
 
 const pathToRegex = path => new RegExp("^" + path.replace(/\//g, "\\/").replace(/:\w+/g, "(.+)") + "$")
 const getParams = match => {
@@ -344,6 +345,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 // Mostra link admin/tesoriere in base al ruolo
                 if (adminLink && data.user?.role === 'admin') adminLink.style.display = "block"
                 if (treasurerLink && (data.user?.role === 'treasurer' || data.user?.role === 'admin')) treasurerLink.style.display = "block"
+                initInactivityLogout();
             } else {
                 // Token scaduto o non valido, rimuovilo
                 localStorage.removeItem('auth_token')

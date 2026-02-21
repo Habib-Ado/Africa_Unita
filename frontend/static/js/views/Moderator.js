@@ -427,10 +427,11 @@ export default class extends AbstractView {
                 this.existingImageUrl = null;
             }
         } else {
-            // Nuovo contenuto
+            // Nuovo contenuto - default "Pubblicato" per visibilità in home
             this.editingContentId = null;
             document.getElementById('contentModalLabel').textContent = 'Nuovo Contenuto';
             form.reset();
+            document.getElementById('content-status').value = 'published';
             document.getElementById('image-preview').style.display = 'none';
         }
         

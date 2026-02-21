@@ -1,4 +1,5 @@
 import { navigateTo, apiFetch } from "../index.js";
+import { initInactivityLogout } from "../inactivityLogout.js";
 import AbstractView from "./AbstractView.js";
 
 export default class extends AbstractView {
@@ -8,6 +9,12 @@ export default class extends AbstractView {
     }
 
     async init() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('reason') === 'inactivity') {
+            this.showSuccess('Sessione scaduta per inattività. Effettua nuovamente l\'accesso.');
+            window.history.replaceState({}, '', '/login');
+        }
+
         const form = document.getElementById("login-form");
         const togglePassword = document.getElementById("togglePassword");
         const passwordInput = document.getElementById("password");
@@ -85,6 +92,7 @@ export default class extends AbstractView {
                         // Salva JWT
                         if (data?.data?.token) {
                             localStorage.setItem('auth_token', data.data.token)
+                            initInactivityLogout();
                         }
                         
                         // Se deve cambiare la password, reindirizza alla pagina di cambio password
