@@ -294,21 +294,39 @@ router.post('/', authenticateToken, requireRole(['moderator', 'admin']), async (
                 message: 'Titolo e data sono obbligatori'
             });
         }
+
+        // meeting_time vuoto o stringa vuota -> null per MySQL TIME
+        const meetingTimeValue = (meeting_time && String(meeting_time).trim()) ? meeting_time : null;
         
         const result = await query(`
             INSERT INTO meetings (title, description, meeting_date, meeting_time, location, created_by, status)
             VALUES (?, ?, ?, ?, ?, ?, 'scheduled')
-        `, [title, description, meeting_date, meeting_time, location, userId]);
+        `, [title, description || null, meeting_date, meetingTimeValue, location || null, userId]);
         
-        let newMeetingId = result.rows?.insertId;
-        if (newMeetingId == null && result.rows && !Array.isArray(result.rows)) {
-            newMeetingId = result.rows.insertId;
+        // mysql2 per INSERT restituisce ResultSetHeader (insertId), non un array
+        let newMeetingId = null;
+        const r = result.rows;
+        if (r && typeof r.insertId !== 'undefined' && r.insertId != null) {
+            newMeetingId = Number(r.insertId);
+        }
+        if (newMeetingId == null && Array.isArray(r) && r[0]) {
+            const row = r[0];
+            newMeetingId = Number(row.insertId ?? row.insert_id ?? row.ID ?? row.id ?? 0) || null;
         }
         if (newMeetingId == null) {
             const idResult = await query('SELECT LAST_INSERT_ID() as id', []);
             const row = Array.isArray(idResult.rows) ? idResult.rows[0] : idResult.rows;
-            if (row && typeof row.id !== 'undefined') newMeetingId = row.id;
-            else if (row && typeof row.ID !== 'undefined') newMeetingId = row.ID;
+            if (row) {
+                const v = row.id ?? row.ID ?? row.insertId ?? row.insert_id;
+                newMeetingId = v != null ? Number(v) : null;
+            }
+        }
+        if (newMeetingId == null || newMeetingId <= 0) {
+            console.error('Impossibile recuperare insertId dopo INSERT meeting', { result });
+            return res.status(500).json({
+                success: false,
+                message: 'Errore nel salvataggio della riunione'
+            });
         }
         
         // Crea automaticamente le presenze per tutti gli utenti attivi

@@ -6,16 +6,21 @@ const router = express.Router();
 // GET /api/stats - Statistiche pubbliche per la home (senza auth)
 router.get('/', async (req, res) => {
     try {
-        const [membersResult, eventsResult] = await Promise.all([
+        const [membersResult, contentResult, meetingsResult] = await Promise.all([
             query('SELECT COUNT(*) as count FROM users WHERE status = ?', ['active']),
-            query('SELECT COUNT(*) as count FROM site_content WHERE status = ?', ['published'])
+            query('SELECT COUNT(*) as count FROM site_content WHERE status = ?', ['published']),
+            query('SELECT COUNT(*) as count FROM meetings')
         ]);
+
+        const contentCount = parseInt(Array.isArray(contentResult.rows) ? contentResult.rows[0]?.count ?? 0 : contentResult.rows?.count ?? 0);
+        const meetingsCount = parseInt(Array.isArray(meetingsResult.rows) ? meetingsResult.rows[0]?.count ?? 0 : meetingsResult.rows?.count ?? 0);
+        const eventsTotal = contentCount + meetingsCount;
 
         res.status(200).json({
             success: true,
             data: {
-                members: parseInt(membersResult.rows[0]?.count ?? 0),
-                events: parseInt(eventsResult.rows[0]?.count ?? 0)
+                members: parseInt(Array.isArray(membersResult.rows) ? membersResult.rows[0]?.count ?? 0 : membersResult.rows?.count ?? 0),
+                events: eventsTotal
             }
         });
     } catch (error) {
