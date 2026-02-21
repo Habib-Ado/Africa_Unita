@@ -250,7 +250,19 @@ router.get('/:id', authenticateToken, async (req, res) => {
             });
         }
         
-        // Ottieni anche le presenze
+        // Ottieni tutti i membri attivi (anche quelli senza record di presenza)
+        const allActiveMembers = await query(`
+            SELECT u.id as user_id,
+                   u.username,
+                   u.first_name,
+                   u.last_name,
+                   u.email
+            FROM users u
+            WHERE u.status = 'active'
+            ORDER BY u.last_name, u.first_name
+        `, []);
+        
+        // Ottieni le presenze esistenti
         const attendanceResult = await query(`
             SELECT ma.*, 
                    u.id as user_id,
@@ -263,14 +275,28 @@ router.get('/:id', authenticateToken, async (req, res) => {
             JOIN users u ON ma.user_id = u.id
             LEFT JOIN users marker ON ma.marked_by = marker.id
             WHERE ma.meeting_id = ?
-            ORDER BY u.last_name, u.first_name
         `, [id]);
+        
+        const attendanceMap = new Map(attendanceResult.rows.map(r => [r.user_id, r]));
+        
+        // Merge: tutti i membri attivi, con status da attendance se presente
+        const attendance = allActiveMembers.rows.map(m => {
+            const existing = attendanceMap.get(m.user_id);
+            return existing || {
+                user_id: m.user_id,
+                username: m.username,
+                first_name: m.first_name,
+                last_name: m.last_name,
+                email: m.email,
+                status: 'absent'
+            };
+        });
         
         res.json({
             success: true,
             data: {
                 meeting: meetingResult.rows[0],
-                attendance: attendanceResult.rows
+                attendance
             }
         });
     } catch (error) {
@@ -536,14 +562,15 @@ router.post('/:id/attendance', authenticateToken, requireRole(['moderator', 'adm
             
             for (const record of attendance) {
                 await connection.execute(`
-                    UPDATE meeting_attendance
-                    SET status = ?,
-                        justification = ?,
-                        marked_by = ?,
+                    INSERT INTO meeting_attendance (meeting_id, user_id, status, justification, marked_by, marked_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON DUPLICATE KEY UPDATE 
+                        status = VALUES(status),
+                        justification = VALUES(justification),
+                        marked_by = VALUES(marked_by),
                         marked_at = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE meeting_id = ? AND user_id = ?
-                `, [record.status, record.justification || null, markedBy, id, record.user_id]);
+                `, [id, record.user_id, record.status, record.justification || null, markedBy]);
             }
             
             await connection.commit();
