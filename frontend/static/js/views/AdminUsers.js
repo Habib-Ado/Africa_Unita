@@ -345,6 +345,14 @@ export default class extends AbstractView {
             });
         }
 
+        // Ricarica tabella alla chiusura del modal cambio ruolo
+        const changeRoleModal = document.getElementById('changeRoleModal');
+        if (changeRoleModal) {
+            changeRoleModal.addEventListener('hidden.bs.modal', () => {
+                this.loadUsers();
+            });
+        }
+
         // Usa il contenitore della tabella invece di document per evitare conflitti
         const tableContainer = document.querySelector('#users-table');
         if (!tableContainer) {
@@ -572,23 +580,11 @@ export default class extends AbstractView {
                 throw new Error(errorData.message || 'Errore durante il cambio di ruolo');
             }
 
-            const data = await response.json();
-            const updatedUser = data.data?.user;
-
             // Mostra notifica di successo
             this.showNotification('Ruolo aggiornato con successo', 'success');
 
-            // Aggiorna l'utente in memoria e refresha la UI senza reload
-            if (updatedUser) {
-                const index = this.users.findIndex(u => u.id === parseInt(userId, 10));
-                if (index !== -1) {
-                    this.users[index] = { ...this.users[index], ...updatedUser };
-                }
-                this.calculateStats();
-                this.updateUI();
-            } else {
-                window.location.reload();
-            }
+            // Ricarica dati dal server per aggiornare la tabella
+            await this.loadUsers();
             
         } catch (error) {
             console.error("❌ [changeUserRole] Errore:", error);
@@ -931,11 +927,6 @@ export default class extends AbstractView {
                 this.showNotification('Errore durante il cambio di ruolo', 'error');
             }
         });
-
-        // Alla chiusura del modal, ricarica i dati per aggiornare la tabella
-        modal.addEventListener('hidden.bs.modal', () => {
-            this.loadUsers();
-        }, { once: true });
 
         const modalInstance = new bootstrap.Modal(modal);
         modalInstance.show();
