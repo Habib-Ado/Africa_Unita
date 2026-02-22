@@ -313,6 +313,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const meetingsButton = document.getElementById("btnMeetings")
     const adminLink = document.getElementById("admin-link")
     const treasurerLink = document.getElementById("treasurer-link")
+    const notificationsDropdown = document.getElementById("notifications-dropdown")
 
     try {
         const token = localStorage.getItem('auth_token')
@@ -327,6 +328,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (myPostsButton) myPostsButton.style.display = "none"
                 if (moderatorButton) moderatorButton.style.display = "none"
                 if (meetingsButton) meetingsButton.style.display = "none"
+                if (notificationsDropdown) notificationsDropdown.style.display = "none"
                 if (loginButton) loginButton.style.display = "block"
                 if (registerButton) registerButton.style.display = "block"
         } else {
@@ -356,6 +358,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 // Mostra link admin/tesoriere in base al ruolo
                 if (adminLink && data.user?.role === 'admin') adminLink.style.display = "block"
                 if (treasurerLink && (data.user?.role === 'treasurer' || data.user?.role === 'admin')) treasurerLink.style.display = "block"
+                if (notificationsDropdown) notificationsDropdown.style.display = "block"
+                initNotifications();
                 initInactivityLogout();
             } else {
                 // Token scaduto o non valido, rimuovilo
@@ -368,6 +372,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (myPostsButton) myPostsButton.style.display = "none"
                 if (moderatorButton) moderatorButton.style.display = "none"
                 if (meetingsButton) meetingsButton.style.display = "none"
+                if (notificationsDropdown) notificationsDropdown.style.display = "none"
                 if (loginButton) loginButton.style.display = "block"
                 if (registerButton) registerButton.style.display = "block"
             }
@@ -380,6 +385,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (logoutButton) logoutButton.style.display = "none"
         if (messagesButton) messagesButton.style.display = "none"
         if (myPostsButton) myPostsButton.style.display = "none"
+        if (notificationsDropdown) notificationsDropdown.style.display = "none"
         if (loginButton) loginButton.style.display = "block"
         if (registerButton) registerButton.style.display = "block"
     }
@@ -407,6 +413,93 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     router().then(_ => console.log)
 })
+
+function initNotifications() {
+    const toggle = document.getElementById('notifications-toggle');
+    const list = document.getElementById('notifications-items');
+    const loading = document.getElementById('notifications-loading');
+    const empty = document.getElementById('notifications-empty');
+    const badge = document.getElementById('notifications-badge');
+    const dropdownEl = document.getElementById('notifications-dropdown');
+
+    if (!toggle || !list) return;
+
+    async function fetchAndRender() {
+        loading.textContent = 'Caricamento...';
+        empty.style.display = 'none';
+        list.innerHTML = '';
+        try {
+            const res = await apiFetch('/api/notifications');
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                loading.textContent = 'Errore';
+                return;
+            }
+            const { notifications = [], unreadCount } = data.data || {};
+            loading.textContent = '';
+
+            if (unreadCount > 0 && badge) {
+                badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+                badge.style.display = 'inline-block';
+            } else if (badge) {
+                badge.style.display = 'none';
+            }
+
+            if (notifications.length === 0) {
+                empty.style.display = 'block';
+                return;
+            }
+
+            notifications.forEach(n => {
+                const item = document.createElement('div');
+                const isUnread = n.is_read === 0 || n.is_read === false;
+                item.className = `dropdown-item ${isUnread ? 'bg-light' : ''} notification-item`;
+                item.style.cursor = 'pointer';
+                item.style.whiteSpace = 'normal';
+                item.dataset.id = n.id;
+                item.dataset.link = n.link || '';
+                const date = n.created_at ? new Date(n.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+                item.innerHTML = `
+                    <div class="d-flex flex-column">
+                        <span class="fw-semibold small">${escapeHtml(n.title || '')}</span>
+                        <span class="text-muted small text-truncate" style="max-width: 100%;">${escapeHtml((n.message || '').slice(0, 80))}${(n.message || '').length > 80 ? '...' : ''}</span>
+                        ${date ? `<small class="text-muted">${date}</small>` : ''}
+                    </div>
+                `;
+                item.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    const id = item.dataset.id;
+                    const link = item.dataset.link;
+                    if (id) {
+                        await apiFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+                        item.classList.remove('bg-light');
+                    }
+                    const dropdown = bootstrap.Dropdown.getInstance(toggle);
+                    if (dropdown) dropdown.hide();
+                    closeNavbarCollapse();
+                    if (link) navigateTo(link);
+                });
+                list.appendChild(item);
+            });
+        } catch (err) {
+            loading.textContent = 'Errore';
+        }
+    }
+
+    const bsDropdown = dropdownEl?.querySelector('[data-bs-toggle="dropdown"]');
+    if (bsDropdown) {
+        bsDropdown.addEventListener('show.bs.dropdown', () => fetchAndRender());
+    }
+    // Fetch per aggiornare il badge all'avvio
+    fetchAndRender().catch(() => {});
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
 
 async function checkSession() {
     try {
