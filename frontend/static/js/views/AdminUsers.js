@@ -932,10 +932,10 @@ export default class extends AbstractView {
             }
         });
 
-        // Gestione chiusura modal senza conferma
+        // Alla chiusura del modal, ricarica i dati per aggiornare la tabella
         modal.addEventListener('hidden.bs.modal', () => {
-            console.log('🔄 [Modal] Modal chiuso senza conferma - comportamento normale');
-        });
+            this.loadUsers();
+        }, { once: true });
 
         const modalInstance = new bootstrap.Modal(modal);
         modalInstance.show();
