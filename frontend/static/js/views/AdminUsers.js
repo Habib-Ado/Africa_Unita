@@ -572,12 +572,23 @@ export default class extends AbstractView {
                 throw new Error(errorData.message || 'Errore durante il cambio di ruolo');
             }
 
-            console.log(`🔄 [changeUserRole] SUCCESSO - Ricarico pagina`);
+            const data = await response.json();
+            const updatedUser = data.data?.user;
+
             // Mostra notifica di successo
             this.showNotification('Ruolo aggiornato con successo', 'success');
-            
-            // Ricarica immediatamente la pagina
-            window.location.reload();
+
+            // Aggiorna l'utente in memoria e refresha la UI senza reload
+            if (updatedUser) {
+                const index = this.users.findIndex(u => u.id === parseInt(userId, 10));
+                if (index !== -1) {
+                    this.users[index] = { ...this.users[index], ...updatedUser };
+                }
+                this.calculateStats();
+                this.updateUI();
+            } else {
+                window.location.reload();
+            }
             
         } catch (error) {
             console.error("❌ [changeUserRole] Errore:", error);
