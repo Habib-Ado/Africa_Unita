@@ -247,6 +247,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 window.addEventListener("popstate", () => router())
 
+function closeNavbarCollapse() {
+    const navbarCollapse = document.getElementById('navbarNav');
+    if (navbarCollapse && window.bootstrap?.Collapse) {
+        const instance = bootstrap.Collapse.getInstance(navbarCollapse);
+        if (instance) instance.hide();
+    }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     // Sposta qui l'inizializzazione del modal "Chi Siamo" (niente inline script per CSP)
     const aboutLinks = document.querySelectorAll('a[href="#about"]');
@@ -263,6 +271,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     aboutLinks.forEach(link => {
         link.addEventListener('click', function (e) {
             e.preventDefault();
+            closeNavbarCollapse();
             if (aboutModalEl && window.bootstrap?.Modal) {
                 const aboutModal = bootstrap.Modal.getOrCreateInstance(aboutModalEl);
                 aboutModal.show();
@@ -270,22 +279,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
     document.body.addEventListener("click", e => {
-        if (e.target.matches("[data-link]")) {
-            e.preventDefault()
-            navigateTo(e.target.href)
+        const link = e.target.closest("[data-link]");
+        if (link) {
+            e.preventDefault();
+            closeNavbarCollapse();
+            navigateTo(link.href);
         }
-    })
+    });
 
     // Search form handler
     const searchForm = document.getElementById("search-form");
     if (searchForm) {
         searchForm.addEventListener("submit", async (e) => {
             e.preventDefault();
+            closeNavbarCollapse();
             const searchInput = document.getElementById("search-input");
             const searchTerm = searchInput.value.trim();
             
             if (searchTerm) {
-                // Redirect to home with search query (no e-commerce products)
                 navigateTo(`/?search=${encodeURIComponent(searchTerm)}`);
             }
         });

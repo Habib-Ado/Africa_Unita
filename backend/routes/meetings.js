@@ -614,42 +614,13 @@ router.get('/user/:userId/stats', authenticateToken, async (req, res) => {
                 SELECT * FROM user_meeting_stats WHERE user_id = ?
             `, [userId]);
         } catch (error) {
-            // Se la VIEW non esiste, calcola le statistiche manualmente
-            console.warn('VIEW user_meeting_stats non trovata, calcolo manuale delle statistiche:', error.message);
-            
-            const meetingsAttended = await query(`
-                SELECT COUNT(DISTINCT meeting_id) as count FROM meeting_attendance WHERE user_id = ?
-            `, [userId]);
-            
-            const meetingsPresent = await query(`
-                SELECT COUNT(DISTINCT meeting_id) as count FROM meeting_attendance 
-                WHERE user_id = ? AND status = 'present'
-            `, [userId]);
-            
-            const meetingsAbsent = await query(`
-                SELECT COUNT(DISTINCT meeting_id) as count FROM meeting_attendance 
-                WHERE user_id = ? AND status = 'absent'
-            `, [userId]);
-            
-            const meetingsJustified = await query(`
-                SELECT COUNT(DISTINCT meeting_id) as count FROM meeting_attendance 
-                WHERE user_id = ? AND status IN ('justified', 'excused')
-            `, [userId]);
-            
-            const totalPenaltyAmount = await query(`
-                SELECT COALESCE(SUM(amount), 0) as total FROM meeting_penalties 
-                WHERE user_id = ? AND status = 'pending'
-            `, [userId]);
-            
+            // Se la VIEW non esiste, usa placeholder per penalty (present/absent/justified vengono dalle query filtrate)
+            console.warn('VIEW user_meeting_stats non trovata:', error.message);
+            const penaltyRes = await query(`SELECT COALESCE(SUM(amount), 0) as total FROM meeting_penalties WHERE user_id = ? AND status = 'pending'`, [userId]);
             statsResult = {
                 rows: [{
                     user_id: userId,
-                    meetings_attended: meetingsAttended.rows[0]?.count || 0,
-                    total_meetings: meetingsAttended.rows[0]?.count || 0,
-                    meetings_present: meetingsPresent.rows[0]?.count || 0,
-                    meetings_absent: meetingsAbsent.rows[0]?.count || 0,
-                    meetings_excused: meetingsJustified.rows[0]?.count || 0,
-                    total_penalty_amount: totalPenaltyAmount.rows[0]?.total || 0,
+                    total_penalty_amount: penaltyRes.rows[0]?.total || 0,
                     pending_penalties_count: 0
                 }]
             };
@@ -680,22 +651,26 @@ router.get('/user/:userId/stats', authenticateToken, async (req, res) => {
         `, [userId]);
         
         const raw = statsResult.rows[0];
-        // La VIEW usa 'excused', l'app usa 'justified': query esplicita per contare entrambi
-        const justifiedResult = await query(`
-            SELECT COUNT(DISTINCT meeting_id) as count FROM meeting_attendance 
-            WHERE user_id = ? AND status IN ('justified', 'excused')
-        `, [userId]);
-        const totalJustified = justifiedResult.rows[0]?.count ?? 0;
+        // Solo riunioni non annullate (scheduled/completed): se non compare in home non si contabilizza
+        const filterBase = `ma.user_id = ? AND m.status IN ('scheduled', 'completed')`;
+        const [presentFiltered, absentFiltered, justifiedFiltered] = await Promise.all([
+            query(`SELECT COUNT(DISTINCT ma.meeting_id) as count FROM meeting_attendance ma JOIN meetings m ON ma.meeting_id = m.id WHERE ${filterBase} AND ma.status = 'present'`, [userId]),
+            query(`SELECT COUNT(DISTINCT ma.meeting_id) as count FROM meeting_attendance ma JOIN meetings m ON ma.meeting_id = m.id WHERE ${filterBase} AND ma.status = 'absent'`, [userId]),
+            query(`SELECT COUNT(DISTINCT ma.meeting_id) as count FROM meeting_attendance ma JOIN meetings m ON ma.meeting_id = m.id WHERE ${filterBase} AND ma.status IN ('justified', 'excused')`, [userId])
+        ]);
+        const totalPresent = presentFiltered.rows[0]?.count ?? 0;
+        const totalAbsent = absentFiltered.rows[0]?.count ?? 0;
+        const totalJustified = justifiedFiltered.rows[0]?.count ?? 0;
 
         const stats = raw ? {
-            total_present: raw.meetings_present ?? raw.total_present ?? 0,
-            total_absent: raw.meetings_absent ?? raw.total_absent ?? 0,
+            total_present: totalPresent,
+            total_absent: totalAbsent,
             total_justified: totalJustified,
             total_penalty_amount: raw.total_penalty_amount ?? 0,
             pending_penalties: raw.pending_penalties_count ?? 0
         } : {
-            total_present: 0,
-            total_absent: 0,
+            total_present: totalPresent,
+            total_absent: totalAbsent,
             total_justified: totalJustified,
             total_penalty_amount: 0,
             pending_penalties: 0

@@ -71,15 +71,19 @@ export default class extends AbstractView {
 
     async loadMeetings() {
         try {
-            // Carica solo le riunioni future programmate
             const response = await apiFetch('/api/meetings?status=scheduled');
-            if (response.ok) {
-                const data = await response.json();
-                // Prendi solo le prossime 3 riunioni
-                this.meetings = (data.data?.meetings || [])
-                    .filter(m => new Date(m.meeting_date) >= new Date())
-                    .slice(0, 3);
-            }
+            const data = response.ok ? await response.json() : { data: {} };
+            const allMeetings = data.data?.meetings || [];
+            // Filtra riunioni di oggi e future (confronto solo la data, non l'orario)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            this.meetings = allMeetings
+                .filter(m => {
+                    const d = new Date(m.meeting_date);
+                    d.setHours(0, 0, 0, 0);
+                    return d >= today;
+                })
+                .slice(0, 3);
         } catch (error) {
             console.error('Errore caricamento riunioni:', error);
             this.meetings = [];
