@@ -680,16 +680,23 @@ router.get('/user/:userId/stats', authenticateToken, async (req, res) => {
         `, [userId]);
         
         const raw = statsResult.rows[0];
+        // La VIEW usa 'excused', l'app usa 'justified': query esplicita per contare entrambi
+        const justifiedResult = await query(`
+            SELECT COUNT(DISTINCT meeting_id) as count FROM meeting_attendance 
+            WHERE user_id = ? AND status IN ('justified', 'excused')
+        `, [userId]);
+        const totalJustified = justifiedResult.rows[0]?.count ?? 0;
+
         const stats = raw ? {
             total_present: raw.meetings_present ?? raw.total_present ?? 0,
             total_absent: raw.meetings_absent ?? raw.total_absent ?? 0,
-            total_justified: raw.meetings_excused ?? raw.meetings_justified ?? raw.total_justified ?? 0,
+            total_justified: totalJustified,
             total_penalty_amount: raw.total_penalty_amount ?? 0,
             pending_penalties: raw.pending_penalties_count ?? 0
         } : {
             total_present: 0,
             total_absent: 0,
-            total_justified: 0,
+            total_justified: totalJustified,
             total_penalty_amount: 0,
             pending_penalties: 0
         };
