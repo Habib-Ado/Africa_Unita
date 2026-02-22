@@ -345,11 +345,11 @@ export default class extends AbstractView {
             });
         }
 
-        // Ricarica tabella alla chiusura del modal cambio ruolo
+        // Ricarica pagina alla chiusura del modal cambio ruolo per aggiornare tabella e statistiche
         const changeRoleModal = document.getElementById('changeRoleModal');
         if (changeRoleModal) {
             changeRoleModal.addEventListener('hidden.bs.modal', () => {
-                this.loadUsers();
+                window.location.reload();
             });
         }
 
