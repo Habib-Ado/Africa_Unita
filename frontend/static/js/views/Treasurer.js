@@ -369,6 +369,11 @@ export default class extends AbstractView {
     }
 
     initializeEventListeners() {
+        // Evita listener duplicati (anche dopo navigazione: i listener su document persistono)
+        const C = this.constructor;
+        if (C._eventListenersInitialized) return;
+        C._eventListenersInitialized = true;
+
         // Conferma pagamento
         document.addEventListener('click', async (e) => {
             if (e.target.closest('.confirm-payment')) {
