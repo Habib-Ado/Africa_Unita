@@ -18,6 +18,7 @@ export default class extends AbstractView {
         this._confirmingPayment = false;
         this._approvingLoan = false;
         this._rejectingLoan = false;
+        this._addingTransaction = false;
     }
 
     async init() {
@@ -564,12 +565,20 @@ export default class extends AbstractView {
     }
 
     async addTransaction(e) {
+        if (this._addingTransaction) return;
+        this._addingTransaction = true;
+
         const formData = new FormData(e.target);
         const payload = {
             transaction_type: formData.get('type'),
             amount: parseFloat(formData.get('amount')),
             description: formData.get('description')
         };
+
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+        }
 
         try {
             const token = localStorage.getItem('auth_token');
@@ -596,6 +605,9 @@ export default class extends AbstractView {
         } catch (error) {
             console.error('Error adding transaction:', error);
             alert('Errore nella registrazione della transazione');
+        } finally {
+            this._addingTransaction = false;
+            if (submitBtn) submitBtn.disabled = false;
         }
     }
 
